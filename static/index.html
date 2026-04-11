@@ -1,0 +1,1333 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>TW Stock Chart</title>
+  <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #0f1117;
+      color: #d1d4dc;
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 13px;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+    }
+
+    /* ── Navbar (session tabs) ── */
+    #navbar {
+      display: flex;
+      align-items: center;
+      background: #161b22;
+      border-bottom: 2px solid #21262d;
+      padding: 0 16px;
+      flex-shrink: 0;
+      gap: 2px;
+    }
+
+    /* ── App body: permanent flex row (watchlist + sessions) ── */
+    #app-body { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Session wrappers ── */
+    #session-dataview,
+    #session-simulation {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      overflow: hidden;
+      min-width: 0;
+    }
+
+    /* ── Top bar ── */
+    #topbar {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      background: #161b22;
+      border-bottom: 1px solid #21262d;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #topbar h1 { font-size: 15px; color: #e6edf3; margin-right: 8px; white-space: nowrap; }
+
+    input, select {
+      background: #0d1117;
+      border: 1px solid #30363d;
+      color: #e6edf3;
+      border-radius: 6px;
+      padding: 5px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    input:focus, select:focus { border-color: #388bfd; }
+    #ticker-input { width: 100px; text-transform: uppercase; }
+
+    button {
+      background: #238636;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      padding: 5px 14px;
+      font-size: 13px;
+      cursor: pointer;
+    }
+    button:hover { background: #2ea043; }
+    button.secondary { background: #21262d; color: #e6edf3; border: 1px solid #30363d; }
+    button.secondary:hover { background: #30363d; }
+    button.icon-btn {
+      background: none; border: none; color: #8b949e;
+      padding: 2px 5px; font-size: 14px; line-height: 1;
+    }
+    button.icon-btn:hover { color: #f85149; background: none; }
+
+    /* ── Nav tabs (must come AFTER button rules to win on hover specificity) ── */
+    .nav-tab {
+      background: none;
+      border: none;
+      border-bottom: 3px solid transparent;
+      border-radius: 0;
+      color: #8b949e;
+      padding: 10px 18px;
+      font-size: 13px;
+      font-weight: 500;
+      cursor: pointer;
+      transition: color 0.15s, border-color 0.15s;
+    }
+    .nav-tab:hover { color: #e6edf3; background: rgba(255,255,255,0.05); }
+    .nav-tab.active { color: #e6edf3; border-bottom-color: #388bfd; }
+
+    .divider { width: 1px; height: 20px; background: #30363d; flex-shrink: 0; }
+
+    .ma-toggle {
+      display: flex; align-items: center; gap: 4px; cursor: pointer; user-select: none;
+    }
+    .ma-toggle input[type=checkbox] { accent-color: #388bfd; cursor: pointer; }
+
+    /* ── Info strip ── */
+    #infobar {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      padding: 4px 16px;
+      background: #161b22;
+      border-bottom: 1px solid #21262d;
+      font-size: 12px;
+      flex-shrink: 0;
+      min-height: 26px;
+      flex-wrap: wrap;
+    }
+    #ohlcv-info { display: flex; gap: 12px; }
+    .ohlc-val { color: #8b949e; }
+    .ohlc-val span { color: #e6edf3; margin-left: 3px; }
+    #status-text { margin-left: auto; color: #8b949e; }
+    .badge { padding: 1px 6px; border-radius: 4px; font-size: 11px; font-weight: 600; }
+    .badge-cache { background: #1f3a1f; color: #3fb950; }
+    .badge-fetch { background: #1f2c3d; color: #58a6ff; }
+
+    /* ── Sharpe bar ── */
+    #sharpebar {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      padding: 4px 16px;
+      background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      font-size: 12px;
+      flex-shrink: 0;
+      flex-wrap: wrap;
+    }
+    #sharpebar label { color: #8b949e; }
+    #sharpebar select, #sharpebar input[type=number] { padding: 2px 6px; font-size: 12px; width: auto; }
+    #sharpebar input[type=number] { width: 64px; }
+    .stat-block { display: flex; gap: 6px; align-items: baseline; }
+    .stat-label { color: #8b949e; }
+    .stat-val   { color: #e6edf3; font-weight: 600; font-size: 13px; }
+    .stat-val.good { color: #3fb950; }
+    .stat-val.warn { color: #f0b429; }
+    .stat-val.bad  { color: #f85149; }
+    #sharpe-note { color: #484f58; font-size: 11px; }
+
+    /* ── dv-main: data-view inner flex row ── */
+    #dv-main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Watchlist panel ── */
+    #watchlist-panel {
+      width: 190px;
+      border-right: 1px solid #21262d;
+      display: flex;
+      flex-direction: column;
+      background: #0d1117;
+      flex-shrink: 0;
+    }
+    #watchlist-header {
+      display: flex; align-items: center; justify-content: space-between;
+      padding: 7px 10px; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    #watchlist-header span {
+      font-size: 11px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.5px; font-weight: 600;
+    }
+    #wl-add-row { display: flex; gap: 4px; padding: 6px 8px; border-bottom: 1px solid #21262d; flex-shrink: 0; }
+    #wl-add-input { flex: 1; font-size: 12px; padding: 4px 7px; text-transform: uppercase; min-width: 0; }
+    #wl-add-btn { padding: 4px 8px; font-size: 13px; flex-shrink: 0; }
+    #wl-list { flex: 1; overflow-y: auto; }
+    #wl-refresh-row {
+      padding: 5px 8px; border-top: 1px solid #21262d;
+      display: flex; align-items: center; justify-content: space-between; flex-shrink: 0;
+    }
+    #wl-refresh-row span { font-size: 11px; color: #8b949e; }
+    .wl-item {
+      display: flex; align-items: center; padding: 7px 10px;
+      cursor: pointer; border-bottom: 1px solid #161b22; gap: 6px; transition: background 0.1s;
+    }
+    .wl-item:hover { background: #161b22; }
+    .wl-item.active { background: #1c2128; border-left: 2px solid #388bfd; }
+    .wl-item-info { flex: 1; min-width: 0; }
+    .wl-ticker { font-size: 13px; font-weight: 600; color: #e6edf3; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .wl-name { font-size: 10px; color: #6e7681; margin-top: 1px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px; }
+    .wl-date { font-size: 10px; color: #8b949e; margin-top: 1px; }
+    .wl-price-col { text-align: right; flex-shrink: 0; }
+    .wl-price { font-size: 13px; font-weight: 600; color: #e6edf3; }
+    .wl-chg { font-size: 11px; margin-top: 1px; }
+    .wl-remove { color: #484f58; font-size: 13px; flex-shrink: 0; }
+    .wl-item:hover .wl-remove { color: #8b949e; }
+    .wl-loading { font-size: 11px; color: #484f58; padding: 10px; text-align: center; }
+    .up { color: #3fb950; }
+    .dn { color: #f85149; }
+
+    /* ── Chart panel ── */
+    #chart-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+    #price-chart { flex: 3; }
+    #volume-chart { flex: 1; }
+    #sharpe-chart-label {
+      font-size: 11px; color: #484f58; padding: 2px 8px;
+      background: #0f1117; border-top: 1px solid #21262d;
+      flex-shrink: 0; user-select: none;
+    }
+    #sharpe-chart { flex: 1; }
+
+    /* ── Table panel ── */
+    #table-panel { width: 300px; border-left: 1px solid #21262d; display: flex; flex-direction: column; overflow: hidden; }
+    #table-panel h3 {
+      padding: 8px 12px; font-size: 11px; color: #8b949e; text-transform: uppercase;
+      letter-spacing: 0.5px; border-bottom: 1px solid #21262d; flex-shrink: 0; font-weight: 600;
+    }
+    #table-scroll { overflow-y: auto; flex: 1; }
+    table { width: 100%; border-collapse: collapse; }
+    thead th {
+      position: sticky; top: 0; background: #161b22; color: #8b949e;
+      padding: 5px 10px; text-align: right; font-weight: 500;
+      border-bottom: 1px solid #21262d; font-size: 11px; text-transform: uppercase;
+    }
+    thead th:first-child { text-align: left; }
+    tbody td { padding: 4px 10px; text-align: right; border-bottom: 1px solid #161b22; color: #c9d1d9; }
+    tbody td:first-child { text-align: left; color: #8b949e; }
+    tbody tr:hover td { background: #161b22; }
+
+    /* ── Simulation session ── */
+    #bt-portfolios-wrap {
+      display: flex; flex-direction: column; gap: 4px; padding: 8px 16px;
+      flex-shrink: 0; overflow-y: auto; max-height: 260px;
+      background: #161b22; border-bottom: 1px solid #21262d;
+    }
+    .pt-row { display: flex; align-items: center; gap: 8px; padding: 3px 4px; border-radius: 5px; }
+    .pt-row.pt-active { background: rgba(56,139,253,0.12); outline: 1px solid rgba(56,139,253,0.4); }
+    .pt-color-dot { width: 10px; height: 10px; border-radius: 50%; flex-shrink: 0; }
+    .pt-name-input { width: 90px; font-size: 12px; padding: 4px 8px; }
+    .pt-alloc-input { flex: 1; font-size: 12px; padding: 4px 8px; font-family: monospace; min-width: 0; }
+    #sim-controls-bar {
+      display: flex; align-items: center; flex-wrap: wrap;
+      gap: 10px; padding: 6px 16px;
+      background: #0d1117; border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    #sim-controls-bar label { color: #8b949e; display: flex; align-items: center; gap: 5px; }
+    #sim-controls-bar select, #sim-controls-bar input[type=number] { padding: 4px 8px; font-size: 12px; width: auto; }
+    #sim-controls-bar input[type=number] { width: 60px; }
+
+    #sim-results { flex: 1; display: flex; flex-direction: column; overflow: hidden; min-height: 0; }
+    #bt-chart-container { flex: 3; min-height: 0; }
+    #bt-stats-wrap {
+      flex: 2; display: flex; flex-direction: row;
+      border-top: 1px solid #21262d; overflow: hidden; min-height: 0;
+    }
+    #bt-stats-table-wrap { flex: 1; overflow-y: auto; min-width: 0; }
+    #bt-stats-table-wrap h3, #bt-corr-wrap h3 {
+      padding: 6px 12px; font-size: 11px; color: #8b949e; text-transform: uppercase;
+      letter-spacing: 0.5px; border-bottom: 1px solid #21262d; font-weight: 600;
+      position: sticky; top: 0; background: #0f1117; z-index: 1;
+    }
+    #bt-corr-wrap { border-left: 1px solid #21262d; overflow: auto; flex-shrink: 0; }
+    #bt-stats-table { width: 100%; }
+
+    /* Correlation matrix */
+    .corr-table { border-collapse: collapse; margin: 8px 12px; font-size: 12px; }
+    .corr-cell { padding: 5px 10px; text-align: center; min-width: 54px; }
+    .corr-header { color: #8b949e; font-weight: 600; font-size: 11px; }
+    .corr-diag { color: #484f58; }
+
+    /* Loading overlay */
+    #loading {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.5); align-items: center; justify-content: center;
+      font-size: 16px; color: #e6edf3; z-index: 100;
+    }
+    #loading.show { display: flex; }
+
+    /* User modal */
+    #user-modal {
+      display: none; position: fixed; inset: 0;
+      background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 200;
+    }
+    #user-modal.show { display: flex; }
+    #user-modal-box {
+      background: #161b22; border: 1px solid #30363d; border-radius: 8px;
+      padding: 20px 24px; min-width: 280px; max-width: 340px;
+    }
+    #user-modal-box h3 { font-size: 14px; color: #e6edf3; margin-bottom: 14px; }
+    .user-btn {
+      display: block; width: 100%; text-align: left;
+      padding: 8px 12px; margin-bottom: 6px;
+      background: #21262d; border: 1px solid #30363d; border-radius: 6px;
+      color: #e6edf3; font-size: 13px; cursor: pointer;
+    }
+    .user-btn:hover { background: #2d333b; border-color: #388bfd; }
+    #user-new-row { display: flex; gap: 6px; margin-top: 10px; border-top: 1px solid #21262d; padding-top: 10px; }
+    #user-new-input { flex: 1; font-size: 12px; padding: 5px 8px; min-width: 0; }
+
+    /* Watchlist header user badge */
+    #wl-user-badge {
+      font-size: 11px; color: #58a6ff; cursor: pointer; font-weight: 600;
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;
+    }
+    #wl-user-badge:hover { text-decoration: underline; }
+  </style>
+</head>
+<body>
+
+<!-- ── Session tab bar ── -->
+<div id="navbar">
+  <button class="nav-tab active" id="tab-dataview" onclick="switchSession('dataview')">Data View</button>
+  <button class="nav-tab" id="tab-simulation" onclick="switchSession('simulation')">Simulation</button>
+</div>
+
+<!-- ── App body: watchlist + sessions side by side ── -->
+<div id="app-body">
+
+  <!-- User modal -->
+  <div id="user-modal">
+    <div id="user-modal-box">
+      <h3>Select User</h3>
+      <div id="user-list"></div>
+      <div id="user-new-row">
+        <input id="user-new-input" placeholder="New username…" maxlength="32" />
+        <button onclick="userCreate()">Create</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Watchlist: shared, always visible -->
+  <div id="watchlist-panel">
+    <div id="watchlist-header">
+      <span>Watchlist</span>
+      <span id="wl-user-badge" onclick="userShowModal()" title="Switch user">—</span>
+    </div>
+    <div id="wl-add-row">
+      <input id="wl-add-input" placeholder="Add ticker…" />
+      <button id="wl-add-btn" onclick="wlAdd()">+</button>
+    </div>
+    <div id="wl-list"></div>
+    <div id="wl-refresh-row">
+      <span id="wl-last-update">Not refreshed yet</span>
+      <button class="secondary" style="padding:3px 8px;font-size:11px" onclick="wlRefresh()">↺</button>
+    </div>
+  </div>
+
+  <!-- ══════════════ SESSION: Data View ══════════════ -->
+  <div id="session-dataview">
+    <div id="topbar">
+      <h1>TW Stock</h1>
+      <input id="ticker-input" placeholder="e.g. 00675L" value="00675L" />
+      <select id="period-select">
+        <option value="1mo">1M</option>
+        <option value="3mo">3M</option>
+        <option value="6mo">6M</option>
+        <option value="1y" selected>1Y</option>
+        <option value="2y">2Y</option>
+        <option value="5y">5Y</option>
+        <option value="max">MAX</option>
+      </select>
+      <button onclick="loadData()">Load</button>
+      <button class="secondary" onclick="loadData(true)">↺ Refresh</button>
+      <div class="divider"></div>
+      <label class="ma-toggle"><input type="checkbox" id="ma20" checked onchange="toggleMA('ma20')"> <span style="color:#f0b429">MA20</span></label>
+      <label class="ma-toggle"><input type="checkbox" id="ma60" checked onchange="toggleMA('ma60')"> <span style="color:#bf5af2">MA60</span></label>
+    </div>
+
+    <div id="infobar">
+      <div id="ohlcv-info">
+        <div class="ohlc-val">O<span id="i-open">—</span></div>
+        <div class="ohlc-val">H<span id="i-high">—</span></div>
+        <div class="ohlc-val">L<span id="i-low">—</span></div>
+        <div class="ohlc-val">C<span id="i-close">—</span></div>
+        <div class="ohlc-val">Vol<span id="i-vol">—</span></div>
+      </div>
+      <span id="status-text">Enter a ticker and click Load</span>
+    </div>
+
+    <div id="sharpebar">
+      <label>Sharpe Ratio</label>
+      <div class="divider"></div>
+      <label>Window
+        <select id="sharpe-window" onchange="updateSharpe()">
+          <option value="21">1 Month</option>
+          <option value="63">3 Months</option>
+          <option value="126">6 Months</option>
+          <option value="252" selected>1 Year</option>
+          <option value="504">2 Years</option>
+          <option value="0">All Data</option>
+        </select>
+      </label>
+      <label>Risk-free rate (annual %)
+        <input type="number" id="sharpe-rfr" value="2.0" step="0.1" min="0" onchange="updateSharpe()" />
+      </label>
+      <div class="divider"></div>
+      <div class="stat-block"><span class="stat-label">Sharpe</span><span class="stat-val" id="s-sharpe">—</span></div>
+      <div class="stat-block"><span class="stat-label">Ann. Return</span><span class="stat-val" id="s-ret">—</span></div>
+      <div class="stat-block"><span class="stat-label">Ann. Volatility</span><span class="stat-val" id="s-vol">—</span></div>
+      <div class="stat-block"><span class="stat-label">Max Drawdown</span><span class="stat-val" id="s-dd">—</span></div>
+      <span id="sharpe-note"></span>
+    </div>
+
+    <div id="dv-main">
+      <div id="chart-panel">
+        <div id="price-chart"></div>
+        <div id="volume-chart"></div>
+        <div id="sharpe-chart-label">Rolling Sharpe</div>
+        <div id="sharpe-chart"></div>
+      </div>
+      <div id="table-panel">
+        <h3>Recent Data</h3>
+        <div id="table-scroll">
+          <table>
+            <thead><tr><th>Date</th><th>Close</th><th>Chg%</th><th>Volume</th></tr></thead>
+            <tbody id="table-body"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div><!-- /#session-dataview -->
+
+  <!-- ══════════════ SESSION: Simulation ══════════════ -->
+  <div id="session-simulation" style="display:none">
+
+    <div id="bt-portfolios-wrap"></div>
+
+    <div id="sim-controls-bar">
+      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptAddRow()">+ Portfolio</button>
+      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()">Reset</button>
+      <div class="divider"></div>
+      <label>Period
+        <select id="bt-period-select">
+          <option value="1mo">1M</option>
+          <option value="3mo">3M</option>
+          <option value="6mo">6M</option>
+          <option value="1y" selected>1Y</option>
+          <option value="2y">2Y</option>
+          <option value="5y">5Y</option>
+          <option value="max">MAX</option>
+        </select>
+      </label>
+      <label>RFR (ann %)
+        <input type="number" id="bt-rfr" value="2.0" step="0.1" min="0" />
+      </label>
+      <span style="color:#484f58;font-size:11px">format: TICKER:WEIGHT, ... (CASH earns RFR)</span>
+      <button onclick="runBacktest()" style="margin-left:auto">Run All</button>
+    </div>
+
+    <div id="sim-results">
+      <div id="bt-chart-container"></div>
+      <div id="bt-stats-wrap">
+        <div id="bt-stats-table-wrap">
+          <h3>Statistics</h3>
+          <table id="bt-stats-table">
+            <thead><tr><th>Portfolio</th><th>Allocation</th><th>Ann. Return</th><th>Ann. Vol</th><th>Sharpe</th><th>Max DD</th></tr></thead>
+            <tbody id="bt-stats-body"></tbody>
+          </table>
+        </div>
+        <div id="bt-corr-wrap">
+          <h3>Correlation</h3>
+          <div id="bt-corr-matrix"></div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /#session-simulation -->
+
+</div><!-- /#app-body -->
+
+<div id="loading">Loading...</div>
+
+<script>
+// ═══════════════════════════════════════════════
+// Session switcher
+// ═══════════════════════════════════════════════
+let activeSession = 'dataview';
+
+function switchSession(session) {
+  activeSession = session;
+  document.getElementById('session-dataview').style.display   = session === 'dataview'   ? 'flex' : 'none';
+  document.getElementById('session-simulation').style.display = session === 'simulation' ? 'flex' : 'none';
+  document.getElementById('tab-dataview').classList.toggle('active',   session === 'dataview');
+  document.getElementById('tab-simulation').classList.toggle('active', session === 'simulation');
+  if (session === 'simulation' && btChart) {
+    requestAnimationFrame(() => {
+      const el = document.getElementById('bt-chart-container');
+      btChart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+    });
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Data View — chart setup
+// ═══════════════════════════════════════════════
+const priceEl = document.getElementById('price-chart');
+const volEl   = document.getElementById('volume-chart');
+
+const chartOpts = (el) => ({
+  layout: { background: { color: '#0f1117' }, textColor: '#8b949e' },
+  grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+  timeScale: { borderColor: '#30363d', timeVisible: true },
+  rightPriceScale: { borderColor: '#30363d' },
+  crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  width: el.clientWidth,
+  height: el.clientHeight,
+});
+
+const priceChart = LightweightCharts.createChart(priceEl, chartOpts(priceEl));
+const volChart   = LightweightCharts.createChart(volEl,   chartOpts(volEl));
+
+const candleSeries = priceChart.addCandlestickSeries({
+  upColor: '#3fb950', downColor: '#f85149',
+  borderUpColor: '#3fb950', borderDownColor: '#f85149',
+  wickUpColor: '#3fb950', wickDownColor: '#f85149',
+});
+const ma20Series = priceChart.addLineSeries({ color: '#f0b429', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+const ma60Series = priceChart.addLineSeries({ color: '#bf5af2', lineWidth: 1, priceLineVisible: false, lastValueVisible: false });
+const volSeries  = volChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
+volChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
+
+const sharpeEl    = document.getElementById('sharpe-chart');
+const sharpeChart = LightweightCharts.createChart(sharpeEl, chartOpts(sharpeEl));
+const sharpeSeries = sharpeChart.addLineSeries({
+  color: '#58a6ff', lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
+});
+[{ price: 1, color: '#3fb950', title: '1' },
+ { price: 0, color: '#484f58', title: '0' },
+ { price: -1, color: '#f85149', title: '-1' }].forEach(cfg =>
+  sharpeSeries.createPriceLine({ ...cfg, lineWidth: 1,
+    lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true })
+);
+
+// Three-way time sync
+let isSyncingRange = false;
+function syncRange(source, range) {
+  if (isSyncingRange || !range) return;
+  isSyncingRange = true;
+  [priceChart, volChart, sharpeChart].filter(c => c !== source)
+    .forEach(c => c.timeScale().setVisibleRange(range));
+  isSyncingRange = false;
+}
+priceChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(priceChart, r));
+volChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(volChart, r));
+sharpeChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(sharpeChart, r));
+
+const ro = new ResizeObserver(() => {
+  priceChart.applyOptions({ width: priceEl.clientWidth, height: priceEl.clientHeight });
+  volChart.applyOptions({ width: volEl.clientWidth, height: volEl.clientHeight });
+  sharpeChart.applyOptions({ width: sharpeEl.clientWidth, height: sharpeEl.clientHeight });
+});
+ro.observe(priceEl);
+ro.observe(volEl);
+ro.observe(sharpeEl);
+
+priceChart.subscribeCrosshairMove(param => {
+  if (!param.time || !param.seriesData.size) return;
+  const candle = param.seriesData.get(candleSeries);
+  const bar    = param.seriesData.get(volSeries);
+  if (candle) {
+    document.getElementById('i-open').textContent  = candle.open;
+    document.getElementById('i-high').textContent  = candle.high;
+    document.getElementById('i-low').textContent   = candle.low;
+    document.getElementById('i-close').textContent = candle.close;
+  }
+  if (bar) document.getElementById('i-vol').textContent = fmtVol(bar.value);
+});
+
+// ═══════════════════════════════════════════════
+// Helpers
+// ═══════════════════════════════════════════════
+function fmtVol(v) {
+  if (v >= 1e6) return (v/1e6).toFixed(1) + 'M';
+  if (v >= 1e3) return (v/1e3).toFixed(0) + 'K';
+  return v;
+}
+function calcMA(data, w) {
+  return data.map((d, i) => {
+    if (i < w - 1) return null;
+    const avg = data.slice(i - w + 1, i + 1).reduce((s, x) => s + x.close, 0) / w;
+    return { time: d.time, value: parseFloat(avg.toFixed(2)) };
+  }).filter(Boolean);
+}
+function toggleMA(id) {
+  const series = id === 'ma20' ? ma20Series : ma60Series;
+  series.applyOptions({ visible: document.getElementById(id).checked });
+}
+
+// ═══════════════════════════════════════════════
+// Data View — load & render
+// ═══════════════════════════════════════════════
+let activeTicker  = '';
+let loadedRecords = [];
+
+async function loadData(forceRefresh = false) {
+  const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
+  const period = document.getElementById('period-select').value;
+  if (!ticker) return;
+
+  document.getElementById('loading').classList.add('show');
+  document.getElementById('status-text').textContent = 'Fetching...';
+  try {
+    const res = await fetch(`/history/${ticker}?period=${period}&refresh=${forceRefresh}`);
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      document.getElementById('status-text').textContent = 'Error: ' + (err.detail || res.statusText);
+      return;
+    }
+    const data = await res.json();
+    activeTicker  = ticker;
+    loadedRecords = data.records;
+    renderCharts(data.ticker, data.records);
+    renderTable(data.records);
+    updateSharpe();
+    wlSetActive(ticker);
+    const badge = data.source === 'cache'
+      ? `<span class="badge badge-cache">cached</span>`
+      : `<span class="badge badge-fetch">live</span>`;
+    document.getElementById('status-text').innerHTML =
+      `${data.ticker} · ${data.records.length} bars · ${data.cached_at?.slice(0,16)} ${badge}`;
+  } catch (e) {
+    document.getElementById('status-text').textContent = 'Error: ' + e.message;
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+function renderCharts(ticker, records) {
+  const candles = records.map(r => ({ time: r.date, open: r.open, high: r.high, low: r.low, close: r.close }));
+  const volumes = records.map(r => ({
+    time: r.date, value: r.volume,
+    color: r.close >= r.open ? 'rgba(63,185,80,0.5)' : 'rgba(248,81,73,0.5)',
+  }));
+  candleSeries.setData(candles);
+  volSeries.setData(volumes);
+  ma20Series.setData(calcMA(candles, 20));
+  ma60Series.setData(calcMA(candles, 60));
+  priceChart.timeScale().fitContent();
+  volChart.timeScale().fitContent();
+  sharpeChart.timeScale().fitContent();
+  const last = records[records.length - 1];
+  document.getElementById('i-open').textContent  = last.open;
+  document.getElementById('i-high').textContent  = last.high;
+  document.getElementById('i-low').textContent   = last.low;
+  document.getElementById('i-close').textContent = last.close;
+  document.getElementById('i-vol').textContent   = fmtVol(last.volume);
+}
+
+function renderTable(records) {
+  const rows = [...records].reverse().slice(0, 60);
+  document.getElementById('table-body').innerHTML = rows.map((r, i) => {
+    const prev = records[records.length - 2 - i];
+    const chg  = prev ? ((r.close - prev.close) / prev.close * 100) : null;
+    const chgStr = chg !== null
+      ? `<span class="${chg >= 0 ? 'up' : 'dn'}">${chg >= 0 ? '+' : ''}${chg.toFixed(2)}%</span>`
+      : '—';
+    return `<tr><td>${r.date}</td><td>${r.close}</td><td>${chgStr}</td><td>${fmtVol(r.volume)}</td></tr>`;
+  }).join('');
+}
+
+document.getElementById('ticker-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadData(); });
+
+// ═══════════════════════════════════════════════
+// Sharpe Ratio
+// ═══════════════════════════════════════════════
+function calcRollingSharpe(records, windowDays, rfrAnn) {
+  const rfrDaily = rfrAnn / 252;
+  const result = [];
+  for (let i = windowDays; i < records.length; i++) {
+    const slice = records.slice(i - windowDays, i + 1);
+    const returns = [];
+    for (let j = 1; j < slice.length; j++)
+      returns.push((slice[j].close - slice[j-1].close) / slice[j-1].close);
+    const n = returns.length;
+    const mean = returns.reduce((a, b) => a + b, 0) / n;
+    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+    const stddev = Math.sqrt(variance);
+    if (stddev === 0) continue;
+    const annVol = stddev * Math.sqrt(252);
+    const sharpe = ((mean - rfrDaily) * 252) / annVol;
+    result.push({ time: records[i].date, value: parseFloat(sharpe.toFixed(4)) });
+  }
+  return result;
+}
+
+function updateSharpe() {
+  if (loadedRecords.length < 2) return;
+  const days   = parseInt(document.getElementById('sharpe-window').value);
+  const rfrAnn = parseFloat(document.getElementById('sharpe-rfr').value) / 100;
+  const window = days > 0 ? loadedRecords.slice(-days) : loadedRecords;
+  if (window.length < 2) { document.getElementById('sharpe-note').textContent = 'Not enough data'; return; }
+
+  const returns = [];
+  for (let i = 1; i < window.length; i++)
+    returns.push((window[i].close - window[i-1].close) / window[i-1].close);
+
+  const n        = returns.length;
+  const mean     = returns.reduce((a, b) => a + b, 0) / n;
+  const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+  const stddev   = Math.sqrt(variance);
+  const annReturn = mean * 252;
+  const annVol    = stddev * Math.sqrt(252);
+  const rfrDaily  = rfrAnn / 252;
+  const sharpe    = stddev === 0 ? 0 : ((mean - rfrDaily) * 252) / annVol;
+
+  let peak = -Infinity, maxDD = 0;
+  for (const r of window) {
+    if (r.close > peak) peak = r.close;
+    const dd = (peak - r.close) / peak;
+    if (dd > maxDD) maxDD = dd;
+  }
+
+  const fmt2 = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%';
+  const sharpeColor = sharpe >= 1 ? 'good' : sharpe >= 0 ? 'warn' : 'bad';
+  const sEl = document.getElementById('s-sharpe');
+  sEl.textContent = sharpe.toFixed(3);
+  sEl.className   = `stat-val ${sharpeColor}`;
+  document.getElementById('s-ret').textContent = fmt2(annReturn);
+  document.getElementById('s-ret').className   = `stat-val ${annReturn >= 0 ? 'good' : 'bad'}`;
+  document.getElementById('s-vol').textContent = (annVol * 100).toFixed(2) + '%';
+  document.getElementById('s-vol').className   = 'stat-val';
+  document.getElementById('s-dd').textContent  = '-' + (maxDD * 100).toFixed(2) + '%';
+  document.getElementById('s-dd').className    = `stat-val ${maxDD > 0.2 ? 'bad' : maxDD > 0.1 ? 'warn' : 'good'}`;
+  document.getElementById('sharpe-note').textContent =
+    `(${window[0].date} → ${window[window.length-1].date}, ${n} trading days)`;
+
+  const rollingDays = days > 0 ? days : loadedRecords.length - 1;
+  if (loadedRecords.length > rollingDays + 1) {
+    sharpeSeries.setData(calcRollingSharpe(loadedRecords, rollingDays, rfrAnn));
+    const currentRange = priceChart.timeScale().getVisibleRange();
+    if (currentRange) sharpeChart.timeScale().setVisibleRange(currentRange);
+  } else {
+    sharpeSeries.setData([]);
+  }
+}
+
+// ═══════════════════════════════════════════════
+// User system
+// ═══════════════════════════════════════════════
+const USER_KEY = 'tw_current_user';
+let currentUser = null;
+
+function userShowModal() {
+  fetch('/users').then(r => r.json()).then(data => {
+    const box = document.getElementById('user-list');
+    box.innerHTML = data.users.length
+      ? data.users.map(u => `
+          <div style="display:flex;gap:6px;margin-bottom:6px">
+            <button class="user-btn" style="margin:0;flex:1" onclick="userSelect('${u}')">${u}</button>
+            <button class="icon-btn" style="color:#f85149;font-size:14px" title="Delete user"
+              onclick="userDelete('${u}')">🗑</button>
+          </div>`).join('')
+      : '<div style="color:#484f58;font-size:12px;margin-bottom:8px">No users yet — create one below</div>';
+    document.getElementById('user-modal').classList.add('show');
+    document.getElementById('user-new-input').focus();
+  });
+}
+
+async function userDelete(name) {
+  if (!confirm(`Delete user "${name}" and their watchlist?`)) return;
+  const res = await fetch(`/users/${encodeURIComponent(name)}`, { method: 'DELETE' });
+  if (!res.ok) { alert('Could not delete user'); return; }
+  if (currentUser === name) {
+    currentUser = null;
+    localStorage.removeItem(USER_KEY);
+    wlData = [];
+    document.getElementById('wl-user-badge').textContent = '—';
+    wlRender();
+  }
+  userShowModal();  // refresh modal
+}
+
+function userHideModal() {
+  document.getElementById('user-modal').classList.remove('show');
+  document.getElementById('user-new-input').value = '';
+}
+
+async function userSelect(name) {
+  userHideModal();
+  currentUser = name;
+  localStorage.setItem(USER_KEY, name);
+  document.getElementById('wl-user-badge').textContent = name;
+  wlQuotes = {};
+  await wlLoadFromServer();
+  wlRender();
+  wlRefresh();
+  wlFetchNames(wlTickers());
+}
+
+async function userCreate() {
+  const val = document.getElementById('user-new-input').value.trim();
+  if (!val) return;
+  const res = await fetch(`/users/${encodeURIComponent(val)}`, { method: 'POST' });
+  if (res.status === 409) { alert('User already exists'); return; }
+  if (!res.ok) { alert('Could not create user'); return; }
+  await userSelect(val);
+}
+
+// ═══════════════════════════════════════════════
+// Watchlist
+// ═══════════════════════════════════════════════
+let wlData   = ["0050", "00675L", "2330"];  // in-memory list, server-backed
+let wlQuotes = {};
+let wlNames  = {};
+let wlTimer  = null;
+
+function wlTickers() { return wlData; }
+
+async function wlLoadFromServer() {
+  if (!currentUser) return;
+  try {
+    const res = await fetch(`/watchlist/${encodeURIComponent(currentUser)}`);
+    if (res.ok) wlData = (await res.json()).tickers || [];
+  } catch (_) {}
+}
+
+async function wlSave() {
+  if (!currentUser) return;
+  try {
+    await fetch(`/watchlist/${encodeURIComponent(currentUser)}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ tickers: wlData }),
+    });
+  } catch (_) {}
+}
+
+function wlAdd() {
+  const val = document.getElementById('wl-add-input').value.trim().toUpperCase();
+  if (!val || !currentUser) return;
+  if (!wlData.includes(val)) {
+    wlData.push(val);
+    wlSave();
+    wlRender();
+    wlRefresh();
+    wlFetchNames([val]);
+  }
+  document.getElementById('wl-add-input').value = '';
+}
+
+function wlRemove(ticker) {
+  wlData = wlData.filter(t => t !== ticker);
+  wlSave();
+  wlRender();
+}
+
+function wlSetActive(ticker) {
+  document.querySelectorAll('.wl-item').forEach(el =>
+    el.classList.toggle('active', el.dataset.ticker === ticker));
+}
+
+function wlRender() {
+  const list = wlTickers();
+  const el = document.getElementById('wl-list');
+  if (!currentUser) {
+    el.innerHTML = '<div class="wl-loading">Select a user to see watchlist</div>';
+    return;
+  }
+  if (list.length === 0) { el.innerHTML = '<div class="wl-loading">No tickers — add one above</div>'; return; }
+  el.innerHTML = list.map(ticker => {
+    const q = wlQuotes[ticker];
+    let priceHtml = '<span class="wl-price" style="color:#484f58">—</span><div class="wl-chg" style="color:#484f58">loading</div>';
+    if (q && !q.error) {
+      const cls = q.change_pct >= 0 ? 'up' : 'dn';
+      const sign = q.change_pct >= 0 ? '+' : '';
+      priceHtml = `<span class="wl-price ${cls}">${q.close}</span><div class="wl-chg ${cls}">${sign}${q.change_pct}%</div>`;
+    } else if (q && q.error) {
+      priceHtml = '<span class="wl-price" style="color:#f85149;font-size:11px">error</span>';
+    }
+    const isActive = ticker === activeTicker ? ' active' : '';
+    const nameObj = wlNames[ticker] || {};
+    const zh = nameObj.zh || '';
+    const en = nameObj.en || '';
+    const displayName = zh || en;
+    const tooltip = zh && en ? `${zh} / ${en}` : (zh || en);
+    return `<div class="wl-item${isActive}" data-ticker="${ticker}" onclick="wlSelect('${ticker}')">
+      <div class="wl-item-info">
+        <div class="wl-ticker">${ticker}</div>
+        ${displayName ? `<div class="wl-name" title="${tooltip}">${displayName}</div>` : ''}
+        <div class="wl-date">${q?.date ?? ''}</div>
+      </div>
+      <div class="wl-price-col">${priceHtml}</div>
+      <button class="icon-btn wl-remove" title="Remove"
+        onclick="event.stopPropagation();wlRemove('${ticker}')">✕</button>
+    </div>`;
+  }).join('');
+}
+
+function wlSelect(ticker) {
+  if (activeSession === 'simulation') { btAddTickerFromWatchlist(ticker); return; }
+  document.getElementById('ticker-input').value = ticker;
+  loadData();
+}
+
+async function wlFetchNames(tickers) {
+  if (!tickers || tickers.length === 0) return;
+  try {
+    const res = await fetch(`/names?tickers=${tickers.join(',')}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    Object.assign(wlNames, data.names);
+    wlRender();
+  } catch (_) {}
+}
+
+async function wlRefresh() {
+  const list = wlTickers();
+  if (list.length === 0) return;
+  try {
+    const res = await fetch(`/quotes?tickers=${list.join(',')}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    data.quotes.forEach(q => { wlQuotes[q.ticker] = q; });
+    wlRender();
+    document.getElementById('wl-last-update').textContent = 'Updated ' + new Date().toLocaleTimeString();
+  } catch (_) {}
+}
+
+function wlStartAutoRefresh() { clearInterval(wlTimer); wlTimer = setInterval(wlRefresh, 60_000); }
+document.getElementById('wl-add-input').addEventListener('keydown', e => { if (e.key === 'Enter') wlAdd(); });
+document.getElementById('user-new-input').addEventListener('keydown', e => { if (e.key === 'Enter') userCreate(); });
+document.getElementById('user-modal').addEventListener('click', e => { if (e.target === e.currentTarget) userHideModal(); });
+
+// ═══════════════════════════════════════════════
+// Simulation — portfolio rows
+// ═══════════════════════════════════════════════
+const PT_MAX     = 10;
+const BT_COLORS  = [
+  '#58a6ff','#3fb950','#f0b429','#bf5af2','#ff7b72',
+  '#79c0ff','#56d364','#e3b341','#d2a8ff','#ffa198'
+];
+let btPortfolios = [];
+let btActivePortfolioIdx = 0;
+
+function parseAlloc(text) {
+  return text.split(',').map(s => {
+    const parts = s.trim().split(':');
+    const t = parts[0]?.trim().toUpperCase();
+    const w = parseFloat(parts[1]) || 0;
+    return { ticker: t, weight: w };
+  }).filter(r => r.ticker);
+}
+
+function ptSetActive(i) {
+  btActivePortfolioIdx = i;
+  document.querySelectorAll('.pt-row').forEach((el, j) =>
+    el.classList.toggle('pt-active', j === i));
+}
+
+function ptInitRows() {
+  btPortfolios = [
+    { name: 'Portfolio 1', alloc: '' },
+    { name: 'Portfolio 2', alloc: '' },
+  ];
+  btActivePortfolioIdx = 0;
+  ptRenderRows();
+}
+
+function ptRenderRows() {
+  const wrap = document.getElementById('bt-portfolios-wrap');
+  wrap.innerHTML = btPortfolios.map((p, i) => `
+    <div class="pt-row${i === btActivePortfolioIdx ? ' pt-active' : ''}">
+      <span class="pt-color-dot" style="background:${BT_COLORS[i]}"></span>
+      <input class="pt-name-input" type="text" value="${p.name.replace(/"/g,'&quot;')}"
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value" />
+      <input class="pt-alloc-input" type="text" placeholder="e.g. 0050:60, 00675L:40"
+        value="${p.alloc.replace(/"/g,'&quot;')}"
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value" />
+      <button class="icon-btn" title="Clear alloc" onclick="ptClearRow(${i})">⌫</button>
+      ${btPortfolios.length > 1
+        ? `<button class="icon-btn" onclick="ptRemoveRow(${i})">✕</button>`
+        : ''}
+    </div>`).join('');
+}
+
+function ptAddRow() {
+  if (btPortfolios.length >= PT_MAX) return;
+  btPortfolios.push({ name: `Portfolio ${btPortfolios.length + 1}`, alloc: '' });
+  ptRenderRows();
+}
+
+function ptClearRow(i) {
+  btPortfolios[i].alloc = '';
+  ptRenderRows();
+}
+
+function ptRemoveRow(i) {
+  btPortfolios.splice(i, 1);
+  if (btActivePortfolioIdx >= btPortfolios.length) btActivePortfolioIdx = btPortfolios.length - 1;
+  ptRenderRows();
+}
+
+function btAddTickerFromWatchlist(ticker) {
+  const p = btPortfolios[btActivePortfolioIdx];
+  const existing = parseAlloc(p.alloc).map(r => r.ticker);
+  if (existing.includes(ticker)) { switchSession('simulation'); return; }
+  p.alloc = p.alloc ? p.alloc + `, ${ticker}:0` : `${ticker}:100`;
+  ptRenderRows();
+  switchSession('simulation');
+}
+
+// ═══════════════════════════════════════════════
+// Simulation — computation
+// ═══════════════════════════════════════════════
+function btAlignDates(tickerData) {
+  const dateSets = tickerData.map(d => new Set(d.records.map(r => r.date)));
+  const commonDates = [...dateSets[0]].filter(date => dateSets.every(s => s.has(date))).sort();
+  const aligned = tickerData.map(d => {
+    const map = Object.fromEntries(d.records.map(r => [r.date, r]));
+    return { ...d, aligned: commonDates.map(date => map[date]) };
+  });
+  return { aligned, commonDates };
+}
+
+function btStats(returns, rfrAnn) {
+  const rfrDaily = rfrAnn / 252;
+  const n     = returns.length;
+  const mean  = returns.reduce((a, b) => a + b, 0) / n;
+  const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
+  const stddev   = Math.sqrt(variance);
+  const annReturn = mean * 252;
+  const annVol    = stddev * Math.sqrt(252);
+  const sharpe    = stddev === 0 ? 0 : ((mean - rfrDaily) * 252) / annVol;
+  let peak = 1, maxDD = 0, equity = 1;
+  for (const r of returns) {
+    equity *= (1 + r);
+    if (equity > peak) peak = equity;
+    const dd = (peak - equity) / peak;
+    if (dd > maxDD) maxDD = dd;
+  }
+  return { annReturn, annVol, sharpe, maxDD };
+}
+
+function pearsonCorr(a, b) {
+  const n = a.length;
+  const ma = a.reduce((s, x) => s + x, 0) / n;
+  const mb = b.reduce((s, x) => s + x, 0) / n;
+  let num = 0, da2 = 0, db2 = 0;
+  for (let i = 0; i < n; i++) {
+    const da = a[i] - ma, db = b[i] - mb;
+    num += da * db; da2 += da * da; db2 += db * db;
+  }
+  const den = Math.sqrt(da2 * db2);
+  return den === 0 ? 0 : parseFloat((num / den).toFixed(4));
+}
+
+function btCompute(tickerData, rfrAnn) {
+  const { aligned, commonDates } = btAlignDates(tickerData);
+  const returns = aligned.map(d => {
+    const ret = [];
+    for (let i = 1; i < d.aligned.length; i++)
+      ret.push((d.aligned[i].close - d.aligned[i-1].close) / d.aligned[i-1].close);
+    return ret;
+  });
+  const nDays = returns[0].length;
+  const portReturns = Array.from({ length: nDays }, (_, i) =>
+    aligned.reduce((sum, d, ti) => sum + returns[ti][i] * d.weight, 0)
+  );
+  const returnDates = commonDates.slice(1);
+  const cumReturns = returns.map(ret => {
+    let cum = 1;
+    return ret.map(r => { cum *= (1 + r); return parseFloat((cum - 1).toFixed(6)); });
+  });
+  const portCum = (() => {
+    let cum = 1;
+    return portReturns.map(r => { cum *= (1 + r); return parseFloat((cum - 1).toFixed(6)); });
+  })();
+  const stats = [
+    ...aligned.map((d, i) => ({ ticker: d.ticker, weight: d.weight, ...btStats(returns[i], rfrAnn) })),
+    { ticker: 'Portfolio', weight: null, ...btStats(portReturns, rfrAnn) },
+  ];
+  const corrMatrix = returns.map((a, i) => returns.map((b, j) => i === j ? 1 : pearsonCorr(a, b)));
+  return { returnDates, cumReturns, portCum, portReturns, stats, corrMatrix };
+}
+
+// ═══════════════════════════════════════════════
+// Simulation — chart
+// ═══════════════════════════════════════════════
+let btChart = null;
+const btRo  = new ResizeObserver(() => {
+  if (!btChart) return;
+  const el = document.getElementById('bt-chart-container');
+  btChart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+});
+
+function btInitChart() {
+  btRo.disconnect();
+  if (btChart) { btChart.remove(); btChart = null; }
+  const el = document.getElementById('bt-chart-container');
+  btChart = LightweightCharts.createChart(el, {
+    layout: { background: { color: '#0f1117' }, textColor: '#8b949e' },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    timeScale: { borderColor: '#30363d' },
+    rightPriceScale: { borderColor: '#30363d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+    width: el.clientWidth,
+    height: el.clientHeight,
+    localization: { priceFormatter: p => (p >= 0 ? '+' : '') + (p * 100).toFixed(2) + '%' },
+  });
+  btRo.observe(el);
+}
+
+function btRenderChartMulti(portfolioResults) {
+  btInitChart();
+  let firstSeries = null;
+  portfolioResults.forEach(p => {
+    const { returnDates, portCum } = p.computed;
+    const s = btChart.addLineSeries({
+      color: p.color, lineWidth: 2,
+      title: p.name, priceLineVisible: false, lastValueVisible: true,
+    });
+    s.setData(returnDates.map((date, j) => ({ time: date, value: portCum[j] })));
+    if (!firstSeries) firstSeries = s;
+  });
+  if (firstSeries) {
+    firstSeries.createPriceLine({
+      price: 0, color: '#484f58', lineWidth: 1,
+      lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: false,
+    });
+  }
+  btChart.timeScale().fitContent();
+}
+
+// ═══════════════════════════════════════════════
+// Simulation — stats & correlation
+// ═══════════════════════════════════════════════
+function btRenderStatsMulti(portfolioResults) {
+  const fmtPct = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%';
+  const clsPct = v => v >= 0 ? 'up' : 'dn';
+  const clsS   = s => s >= 1 ? 'good' : s >= 0 ? 'warn' : 'bad';
+  document.getElementById('bt-stats-body').innerHTML = portfolioResults.map(p => {
+    const portStat = p.computed.stats.find(s => s.ticker === 'Portfolio');
+    const allocSummary = p.tickerData
+      .map(d => `${d.ticker}:${(d.weight * 100).toFixed(0)}%`).join(' ');
+    return `<tr>
+      <td><span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${p.color};margin-right:6px"></span>
+          <strong>${p.name}</strong></td>
+      <td style="color:#8b949e;font-size:11px">${allocSummary}</td>
+      <td class="${clsPct(portStat.annReturn)}">${fmtPct(portStat.annReturn)}</td>
+      <td>${(portStat.annVol * 100).toFixed(2)}%</td>
+      <td class="stat-val ${clsS(portStat.sharpe)}" style="font-size:12px">${portStat.sharpe.toFixed(3)}</td>
+      <td class="dn">-${(portStat.maxDD * 100).toFixed(2)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function btRenderCorrMulti(portfolioResults) {
+  const names   = portfolioResults.map(p => p.name);
+  const allRets = portfolioResults.map(p => p.computed.portReturns);
+  const minLen  = Math.min(...allRets.map(r => r.length));
+  const trimmed = allRets.map(r => r.slice(r.length - minLen));
+  const matrix  = trimmed.map((a, i) => trimmed.map((b, j) => i === j ? 1 : pearsonCorr(a, b)));
+  btRenderCorr(matrix, names);
+}
+
+function btRenderCorr(matrix, tickers) {
+  function corrBg(v) {
+    if (v >= 0.99)  return 'rgba(63,185,80,0.12)';
+    if (v >= 0.5)   return `rgba(63,185,80,${(v * 0.25).toFixed(2)})`;
+    if (v <= -0.3)  return `rgba(248,81,73,${(Math.abs(v) * 0.35).toFixed(2)})`;
+    return 'transparent';
+  }
+  const n = tickers.length;
+  let html = `<table class="corr-table"><thead><tr>
+    <th class="corr-cell corr-header"></th>
+    ${tickers.map(t => `<th class="corr-cell corr-header">${t}</th>`).join('')}
+    </tr></thead><tbody>`;
+  for (let i = 0; i < n; i++) {
+    html += `<tr><td class="corr-cell corr-header">${tickers[i]}</td>`;
+    for (let j = 0; j < n; j++) {
+      const v = matrix[i][j];
+      html += `<td class="corr-cell${i===j?' corr-diag':''}" style="background:${corrBg(v)}">${v.toFixed(2)}</td>`;
+    }
+    html += '</tr>';
+  }
+  html += '</tbody></table>';
+  document.getElementById('bt-corr-matrix').innerHTML = html;
+}
+
+// ═══════════════════════════════════════════════
+// Simulation — run
+// ═══════════════════════════════════════════════
+// Generate synthetic cash records for given dates, compounding at rfrAnn/252 per day
+function generateCashRecords(dates, rfrAnn) {
+  const dailyRate = rfrAnn / 252;
+  let price = 100;
+  return dates.map(date => {
+    price *= (1 + dailyRate);
+    const p = parseFloat(price.toFixed(6));
+    return { date, open: p, high: p, low: p, close: p, volume: 0 };
+  });
+}
+
+async function runBacktest() {
+  const validPortfolios = btPortfolios
+    .map((p, i) => ({ ...p, idx: i, rows: parseAlloc(p.alloc) }))
+    .filter(p => p.rows.length > 0);
+
+  if (validPortfolios.length === 0) { alert('Add allocations to at least one portfolio.'); return; }
+
+  const period = document.getElementById('bt-period-select').value;
+  const rfr    = parseFloat(document.getElementById('bt-rfr').value) / 100;
+
+  document.getElementById('loading').classList.add('show');
+  try {
+    // Collect unique real tickers across all portfolios, fetch once each
+    const allTickers = [...new Set(
+      validPortfolios.flatMap(p => p.rows.map(r => r.ticker).filter(t => t !== 'CASH'))
+    )];
+    const fetchResults = await Promise.allSettled(
+      allTickers.map(t => fetch(`/history/${t}?period=${period}&refresh=true`).then(r => r.json()))
+    );
+    const recordsMap = {};
+    allTickers.forEach((t, i) => {
+      if (fetchResults[i].status === 'fulfilled')
+        recordsMap[t] = fetchResults[i].value.records;
+    });
+
+    // Detect tickers with truly identical price series (compare first 5 daily returns)
+    function recordsSameData(r1, r2) {
+      if (!r1 || !r2 || r1.length !== r2.length || r1.length < 2) return false;
+      for (let i = 1; i < Math.min(6, r1.length); i++) {
+        const d1 = (r1[i].close - r1[i-1].close) / r1[i-1].close;
+        const d2 = (r2[i].close - r2[i-1].close) / r2[i-1].close;
+        if (Math.abs(d1 - d2) > 1e-9) return false;
+      }
+      return true;
+    }
+    const loadedEntries = Object.entries(recordsMap).filter(([, r]) => r?.length > 1);
+    const dupePairs = [];
+    for (let i = 0; i < loadedEntries.length; i++) {
+      for (let j = i + 1; j < loadedEntries.length; j++) {
+        if (recordsSameData(loadedEntries[i][1], loadedEntries[j][1])) {
+          dupePairs.push(`${loadedEntries[i][0]} = ${loadedEntries[j][0]}`);
+        }
+      }
+    }
+    if (dupePairs.length > 0) {
+      alert(`Data warning: these tickers returned identical price data:\n${dupePairs.join('\n')}\n\nResults may be incorrect. Clear the cache for these tickers and re-run.`);
+    }
+
+    // Warn about tickers that couldn't be loaded
+    const allUnfound = [...new Set(
+      validPortfolios.flatMap(p =>
+        p.rows.filter(r => r.ticker !== 'CASH' && !recordsMap[r.ticker]).map(r => r.ticker)
+      )
+    )];
+    if (allUnfound.length > 0) {
+      alert(`Warning: the following tickers could not be loaded and will be skipped:\n${allUnfound.join(', ')}`);
+    }
+
+    // Compute each portfolio independently
+    const portfolioResults = validPortfolios.map(p => {
+      const realRows = p.rows.filter(r => r.ticker !== 'CASH' && recordsMap[r.ticker]);
+      const cashRows = p.rows.filter(r => r.ticker === 'CASH');
+      if (realRows.length === 0) return null;
+
+      const totalW = p.rows.reduce((s, r) => s + (r.weight || 0), 0);
+      const normed = p.rows.map(r => ({
+        ...r,
+        weight: totalW > 0 ? r.weight / totalW : 1 / p.rows.length,
+      }));
+
+      const tickerData = normed
+        .filter(r => r.ticker !== 'CASH' && recordsMap[r.ticker])
+        .map(r => ({ ticker: r.ticker, weight: r.weight, records: recordsMap[r.ticker] }));
+
+      // Re-normalize real ticker weights after dropping unfound tickers
+      const foundW = tickerData.reduce((s, d) => s + d.weight, 0);
+      if (foundW > 0) tickerData.forEach(d => { d.weight /= foundW; });
+
+      if (cashRows.length > 0) {
+        const { commonDates } = btAlignDates(tickerData);
+        // Recompute CASH weight from original normed, then re-normalize the whole tickerData
+        const rawCashW = cashRows.reduce((s, r) => s + (normed.find(n => n.ticker === r.ticker)?.weight || 0), 0);
+        const realScale = 1 - rawCashW;
+        tickerData.forEach(d => { d.weight *= realScale; });
+        cashRows.forEach(r => {
+          tickerData.push({ ticker: 'CASH', weight: rawCashW / cashRows.length, records: generateCashRecords(commonDates, rfr) });
+        });
+        // Final normalize to guarantee sum = 1
+        const totalFinal = tickerData.reduce((s, d) => s + d.weight, 0);
+        if (totalFinal > 0) tickerData.forEach(d => { d.weight /= totalFinal; });
+      }
+
+      // Write normalized weights back to the portfolio alloc input
+      btPortfolios[p.idx].alloc = tickerData
+        .map(d => `${d.ticker}:${(d.weight * 100).toFixed(1)}`).join(', ');
+
+      const computed = btCompute(tickerData, rfr);
+      return { name: p.name, color: BT_COLORS[p.idx], computed, tickerData };
+    }).filter(Boolean);
+
+    if (portfolioResults.length === 0) throw new Error('No valid portfolios (check tickers)');
+
+    ptRenderRows();  // reflect normalized weights in the inputs
+    btRenderChartMulti(portfolioResults);
+    btRenderStatsMulti(portfolioResults);
+    btRenderCorrMulti(portfolioResults);
+  } catch (e) {
+    alert('Backtest error: ' + e.message);
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+// ═══════════════════════════════════════════════
+// Boot
+// ═══════════════════════════════════════════════
+ptInitRows();
+wlStartAutoRefresh();
+loadData();
+
+// Restore last user or prompt to select
+(async () => {
+  const saved = localStorage.getItem(USER_KEY);
+  if (saved) {
+    // Verify user still exists on server
+    const res = await fetch(`/watchlist/${encodeURIComponent(saved)}`).catch(() => null);
+    if (res && res.ok) {
+      await userSelect(saved);
+      return;
+    }
+  }
+  // No valid saved user — show modal
+  wlRender();
+  userShowModal();
+})();
+</script>
+</body>
+</html>
