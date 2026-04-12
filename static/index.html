@@ -278,7 +278,7 @@
     }
     #loading.show { display: flex; }
 
-    /* User modal */
+    /* Auth modal */
     #user-modal {
       display: none; position: fixed; inset: 0;
       background: rgba(0,0,0,0.7); align-items: center; justify-content: center; z-index: 200;
@@ -286,18 +286,19 @@
     #user-modal.show { display: flex; }
     #user-modal-box {
       background: #161b22; border: 1px solid #30363d; border-radius: 8px;
-      padding: 20px 24px; min-width: 280px; max-width: 340px;
+      padding: 24px 28px; width: 300px;
     }
-    #user-modal-box h3 { font-size: 14px; color: #e6edf3; margin-bottom: 14px; }
-    .user-btn {
-      display: block; width: 100%; text-align: left;
-      padding: 8px 12px; margin-bottom: 6px;
-      background: #21262d; border: 1px solid #30363d; border-radius: 6px;
-      color: #e6edf3; font-size: 13px; cursor: pointer;
-    }
-    .user-btn:hover { background: #2d333b; border-color: #388bfd; }
-    #user-new-row { display: flex; gap: 6px; margin-top: 10px; border-top: 1px solid #21262d; padding-top: 10px; }
-    #user-new-input { flex: 1; font-size: 12px; padding: 5px 8px; min-width: 0; }
+    #user-modal-box h3 { font-size: 15px; color: #e6edf3; margin-bottom: 16px; font-weight: 600; }
+    .auth-field { margin-bottom: 10px; }
+    .auth-field input { width: 100%; font-size: 13px; padding: 7px 10px; }
+    .auth-error { font-size: 12px; color: #f85149; min-height: 18px; margin: 4px 0 8px; }
+    .auth-submit { width: 100%; padding: 8px; font-size: 13px; margin-top: 2px; }
+    .auth-switch { font-size: 12px; color: #8b949e; margin-top: 12px; text-align: center; }
+    .auth-switch a { color: #58a6ff; cursor: pointer; }
+    .auth-switch a:hover { text-decoration: underline; }
+    .auth-danger { color: #f85149; background: transparent; border-color: #f85149;
+                   width: 100%; padding: 7px; font-size: 12px; margin-top: 8px; }
+    .auth-danger:hover { background: rgba(248,81,73,0.1); }
 
     /* Watchlist header user badge */
     #wl-user-badge {
@@ -318,14 +319,34 @@
 <!-- ── App body: watchlist + sessions side by side ── -->
 <div id="app-body">
 
-  <!-- User modal -->
+  <!-- Auth modal -->
   <div id="user-modal">
     <div id="user-modal-box">
-      <h3>Select User</h3>
-      <div id="user-list"></div>
-      <div id="user-new-row">
-        <input id="user-new-input" placeholder="New username…" maxlength="32" />
-        <button onclick="userCreate()">Create</button>
+      <!-- Login view -->
+      <div id="auth-login">
+        <h3>Sign In</h3>
+        <div class="auth-field"><input id="login-username" placeholder="Username" autocomplete="username" /></div>
+        <div class="auth-field"><input id="login-password" type="password" placeholder="Password" autocomplete="current-password" /></div>
+        <div id="login-error" class="auth-error"></div>
+        <button class="auth-submit" onclick="doLogin()">Sign In</button>
+        <div class="auth-switch">No account? <a onclick="showCreateView()">Create one</a></div>
+      </div>
+      <!-- Create account view -->
+      <div id="auth-create" style="display:none">
+        <h3>Create Account</h3>
+        <div class="auth-field"><input id="create-username" placeholder="Username" autocomplete="username" maxlength="32" /></div>
+        <div class="auth-field"><input id="create-password" type="password" placeholder="Password" autocomplete="new-password" /></div>
+        <div class="auth-field"><input id="create-password2" type="password" placeholder="Confirm password" autocomplete="new-password" /></div>
+        <div id="create-error" class="auth-error"></div>
+        <button class="auth-submit" onclick="doCreateUser()">Create Account</button>
+        <div class="auth-switch"><a onclick="showLoginView()">Back to sign in</a></div>
+      </div>
+      <!-- Account settings view (when logged in) -->
+      <div id="auth-settings" style="display:none">
+        <h3>Account</h3>
+        <div style="font-size:13px;color:#8b949e;margin-bottom:16px">Signed in as <strong id="settings-username" style="color:#e6edf3"></strong></div>
+        <button class="auth-submit secondary" onclick="doSwitchUser()">Switch account</button>
+        <button class="auth-danger" onclick="doDeleteUser()">Delete account</button>
       </div>
     </div>
   </div>
@@ -361,8 +382,6 @@
         <option value="5y">5Y</option>
         <option value="max">MAX</option>
       </select>
-      <button onclick="loadData()">Load</button>
-      <button class="secondary" onclick="loadData(true)">↺ Refresh</button>
       <div class="divider"></div>
       <label class="ma-toggle"><input type="checkbox" id="ma20" checked onchange="toggleMA('ma20')"> <span style="color:#f0b429">MA20</span></label>
       <label class="ma-toggle"><input type="checkbox" id="ma60" checked onchange="toggleMA('ma60')"> <span style="color:#bf5af2">MA60</span></label>
@@ -376,7 +395,7 @@
         <div class="ohlc-val">C<span id="i-close">—</span></div>
         <div class="ohlc-val">Vol<span id="i-vol">—</span></div>
       </div>
-      <span id="status-text">Enter a ticker and click Load</span>
+      <span id="status-text">Enter a ticker symbol</span>
     </div>
 
     <div id="sharpebar">
@@ -660,7 +679,13 @@ function renderTable(records) {
   }).join('');
 }
 
-document.getElementById('ticker-input').addEventListener('keydown', e => { if (e.key === 'Enter') loadData(); });
+let _tickerInputTimer = null;
+document.getElementById('ticker-input').addEventListener('input', () => {
+  clearTimeout(_tickerInputTimer);
+  _tickerInputTimer = setTimeout(loadData, 600);
+});
+document.getElementById('ticker-input').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(_tickerInputTimer); loadData(); } });
+document.getElementById('period-select').addEventListener('change', () => loadData(true));
 
 // ═══════════════════════════════════════════════
 // Sharpe Ratio
@@ -737,65 +762,147 @@ function updateSharpe() {
 }
 
 // ═══════════════════════════════════════════════
-// User system
+// Auth
 // ═══════════════════════════════════════════════
-const USER_KEY = 'tw_current_user';
+const TOKEN_KEY = 'tw_auth_token';
+let authToken   = localStorage.getItem(TOKEN_KEY) || null;
 let currentUser = null;
 
-function userShowModal() {
-  fetch('/users').then(r => r.json()).then(data => {
-    const box = document.getElementById('user-list');
-    box.innerHTML = data.users.length
-      ? data.users.map(u => `
-          <div style="display:flex;gap:6px;margin-bottom:6px">
-            <button class="user-btn" style="margin:0;flex:1" onclick="userSelect('${u}')">${u}</button>
-            <button class="icon-btn" style="color:#f85149;font-size:14px" title="Delete user"
-              onclick="userDelete('${u}')">🗑</button>
-          </div>`).join('')
-      : '<div style="color:#484f58;font-size:12px;margin-bottom:8px">No users yet — create one below</div>';
-    document.getElementById('user-modal').classList.add('show');
-    document.getElementById('user-new-input').focus();
-  });
-}
-
-async function userDelete(name) {
-  if (!confirm(`Delete user "${name}" and their watchlist?`)) return;
-  const res = await fetch(`/users/${encodeURIComponent(name)}`, { method: 'DELETE' });
-  if (!res.ok) { alert('Could not delete user'); return; }
-  if (currentUser === name) {
+async function authFetch(url, options = {}) {
+  const headers = { 'Content-Type': 'application/json', ...(options.headers || {}) };
+  if (authToken) headers['X-Auth-Token'] = authToken;
+  const res = await fetch(url, { ...options, headers });
+  if (res.status === 401) {
+    authToken = null;
+    localStorage.removeItem(TOKEN_KEY);
     currentUser = null;
-    localStorage.removeItem(USER_KEY);
-    wlData = [];
     document.getElementById('wl-user-badge').textContent = '—';
-    wlRender();
+    wlData = []; wlRender();
+    showLoginView();
+    document.getElementById('user-modal').classList.add('show');
+    throw new Error('Session expired — please sign in again');
   }
-  userShowModal();  // refresh modal
+  return res;
 }
 
+function showLoginView() {
+  document.getElementById('auth-login').style.display  = '';
+  document.getElementById('auth-create').style.display = 'none';
+  document.getElementById('auth-settings').style.display = 'none';
+  document.getElementById('login-error').textContent   = '';
+  setTimeout(() => document.getElementById('login-username').focus(), 50);
+}
+function showCreateView() {
+  document.getElementById('auth-login').style.display  = 'none';
+  document.getElementById('auth-create').style.display = '';
+  document.getElementById('auth-settings').style.display = 'none';
+  document.getElementById('create-error').textContent  = '';
+  setTimeout(() => document.getElementById('create-username').focus(), 50);
+}
+function showSettingsView() {
+  document.getElementById('auth-login').style.display  = 'none';
+  document.getElementById('auth-create').style.display = 'none';
+  document.getElementById('auth-settings').style.display = '';
+  document.getElementById('settings-username').textContent = currentUser;
+}
+
+function userShowModal() {
+  if (currentUser) { showSettingsView(); }
+  else              { showLoginView(); }
+  document.getElementById('user-modal').classList.add('show');
+}
 function userHideModal() {
   document.getElementById('user-modal').classList.remove('show');
-  document.getElementById('user-new-input').value = '';
 }
 
-async function userSelect(name) {
+async function doLogin() {
+  const username = document.getElementById('login-username').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl    = document.getElementById('login-error');
+  errEl.textContent = '';
+  if (!username) { errEl.textContent = 'Username required'; return; }
+  try {
+    const res = await fetch('/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    if (!res.ok) {
+      errEl.textContent = (await res.json()).detail || 'Login failed';
+      return;
+    }
+    const data = await res.json();
+    await _onLoginSuccess(data.token, data.username);
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+async function doCreateUser() {
+  const username  = document.getElementById('create-username').value.trim();
+  const password  = document.getElementById('create-password').value;
+  const password2 = document.getElementById('create-password2').value;
+  const errEl     = document.getElementById('create-error');
+  errEl.textContent = '';
+  if (!username) { errEl.textContent = 'Username required'; return; }
+  if (!password) { errEl.textContent = 'Password required'; return; }
+  if (password !== password2) { errEl.textContent = 'Passwords do not match'; return; }
+  try {
+    const res = await fetch(`/users/${encodeURIComponent(username)}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ password }),
+    });
+    if (res.status === 409) { errEl.textContent = 'Username already taken'; return; }
+    if (!res.ok) { errEl.textContent = (await res.json()).detail || 'Error'; return; }
+    const data = await res.json();
+    await _onLoginSuccess(data.token, data.username);
+  } catch (e) { errEl.textContent = e.message; }
+}
+
+async function _onLoginSuccess(token, username) {
+  authToken   = token;
+  currentUser = username;
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem('tw_username', username);
   userHideModal();
-  currentUser = name;
-  localStorage.setItem(USER_KEY, name);
-  document.getElementById('wl-user-badge').textContent = name;
+  document.getElementById('wl-user-badge').textContent = username;
+  document.getElementById('login-password').value  = '';
+  document.getElementById('create-password').value = '';
+  document.getElementById('create-password2').value = '';
   wlQuotes = {};
   await wlLoadFromServer();
   wlRender();
   wlRefresh();
   wlFetchNames(wlTickers());
+  await portfoliosLoad();
 }
 
-async function userCreate() {
-  const val = document.getElementById('user-new-input').value.trim();
-  if (!val) return;
-  const res = await fetch(`/users/${encodeURIComponent(val)}`, { method: 'POST' });
-  if (res.status === 409) { alert('User already exists'); return; }
-  if (!res.ok) { alert('Could not create user'); return; }
-  await userSelect(val);
+function doSwitchUser() {
+  authToken   = null;
+  currentUser = null;
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem('tw_username');
+  wlData = []; wlRender();
+  btPortfolios = []; ptInitRows();
+  userHideModal();
+  showLoginView();
+  document.getElementById('user-modal').classList.add('show');
+}
+
+async function doDeleteUser() {
+  if (!confirm(`Delete account "${currentUser}" and all data? This cannot be undone.`)) return;
+  try {
+    const res = await authFetch(`/users/${encodeURIComponent(currentUser)}`, { method: 'DELETE' });
+    if (!res.ok) { alert('Could not delete account'); return; }
+    authToken   = null;
+    currentUser = null;
+    localStorage.removeItem(TOKEN_KEY);
+    wlData = []; wlRender();
+    btPortfolios = []; ptInitRows();
+    userHideModal();
+    showLoginView();
+    document.getElementById('wl-user-badge').textContent = '—';
+    document.getElementById('user-modal').classList.add('show');
+  } catch (_) {}
 }
 
 // ═══════════════════════════════════════════════
@@ -811,7 +918,7 @@ function wlTickers() { return wlData; }
 async function wlLoadFromServer() {
   if (!currentUser) return;
   try {
-    const res = await fetch(`/watchlist/${encodeURIComponent(currentUser)}`);
+    const res = await authFetch(`/watchlist/${encodeURIComponent(currentUser)}`);
     if (res.ok) wlData = (await res.json()).tickers || [];
   } catch (_) {}
 }
@@ -819,9 +926,8 @@ async function wlLoadFromServer() {
 async function wlSave() {
   if (!currentUser) return;
   try {
-    await fetch(`/watchlist/${encodeURIComponent(currentUser)}`, {
+    await authFetch(`/watchlist/${encodeURIComponent(currentUser)}`, {
       method: 'PUT',
-      headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ tickers: wlData }),
     });
   } catch (_) {}
@@ -920,8 +1026,9 @@ async function wlRefresh() {
 
 function wlStartAutoRefresh() { clearInterval(wlTimer); wlTimer = setInterval(wlRefresh, 60_000); }
 document.getElementById('wl-add-input').addEventListener('keydown', e => { if (e.key === 'Enter') wlAdd(); });
-document.getElementById('user-new-input').addEventListener('keydown', e => { if (e.key === 'Enter') userCreate(); });
-document.getElementById('user-modal').addEventListener('click', e => { if (e.target === e.currentTarget) userHideModal(); });
+document.getElementById('login-password').addEventListener('keydown', e => { if (e.key === 'Enter') doLogin(); });
+document.getElementById('login-username').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('login-password').focus(); });
+document.getElementById('create-password2').addEventListener('keydown', e => { if (e.key === 'Enter') doCreateUser(); });
 
 // ═══════════════════════════════════════════════
 // Simulation — portfolio rows
@@ -964,10 +1071,10 @@ function ptRenderRows() {
     <div class="pt-row${i === btActivePortfolioIdx ? ' pt-active' : ''}">
       <span class="pt-color-dot" style="background:${BT_COLORS[i]}"></span>
       <input class="pt-name-input" type="text" value="${p.name.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value;portfoliosSave()" />
       <input class="pt-alloc-input" type="text" placeholder="e.g. 0050:60, 00675L:40"
         value="${p.alloc.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value;portfoliosSave()" />
       <button class="icon-btn" title="Clear alloc" onclick="ptClearRow(${i})">⌫</button>
       ${btPortfolios.length > 1
         ? `<button class="icon-btn" onclick="ptRemoveRow(${i})">✕</button>`
@@ -975,21 +1082,52 @@ function ptRenderRows() {
     </div>`).join('');
 }
 
+// ── Portfolio server sync ────────────────────────────────────────────────────
+let _portfolioSaveTimer = null;
+function portfoliosSave() {
+  clearTimeout(_portfolioSaveTimer);
+  _portfolioSaveTimer = setTimeout(async () => {
+    if (!currentUser) return;
+    try {
+      await authFetch(`/portfolios/${encodeURIComponent(currentUser)}`, {
+        method: 'PUT',
+        body: JSON.stringify({ portfolios: btPortfolios }),
+      });
+    } catch (_) {}
+  }, 800);
+}
+
+async function portfoliosLoad() {
+  if (!currentUser) return;
+  try {
+    const res = await authFetch(`/portfolios/${encodeURIComponent(currentUser)}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.portfolios && data.portfolios.length > 0) {
+      btPortfolios = data.portfolios;
+      ptRenderRows();
+    }
+  } catch (_) {}
+}
+
 function ptAddRow() {
   if (btPortfolios.length >= PT_MAX) return;
   btPortfolios.push({ name: `Portfolio ${btPortfolios.length + 1}`, alloc: '' });
   ptRenderRows();
+  portfoliosSave();
 }
 
 function ptClearRow(i) {
   btPortfolios[i].alloc = '';
   ptRenderRows();
+  portfoliosSave();
 }
 
 function ptRemoveRow(i) {
   btPortfolios.splice(i, 1);
   if (btActivePortfolioIdx >= btPortfolios.length) btActivePortfolioIdx = btPortfolios.length - 1;
   ptRenderRows();
+  portfoliosSave();
 }
 
 function btAddTickerFromWatchlist(ticker) {
@@ -1296,6 +1434,7 @@ async function runBacktest() {
     if (portfolioResults.length === 0) throw new Error('No valid portfolios (check tickers)');
 
     ptRenderRows();  // reflect normalized weights in the inputs
+    portfoliosSave();
     btRenderChartMulti(portfolioResults);
     btRenderStatsMulti(portfolioResults);
     btRenderCorrMulti(portfolioResults);
@@ -1313,20 +1452,31 @@ ptInitRows();
 wlStartAutoRefresh();
 loadData();
 
-// Restore last user or prompt to select
+// Restore session from stored token, or prompt login
 (async () => {
-  const saved = localStorage.getItem(USER_KEY);
-  if (saved) {
-    // Verify user still exists on server
-    const res = await fetch(`/watchlist/${encodeURIComponent(saved)}`).catch(() => null);
-    if (res && res.ok) {
-      await userSelect(saved);
-      return;
-    }
+  if (authToken) {
+    try {
+      const res = await fetch('/me', { headers: { 'X-Auth-Token': authToken } });
+      if (res.ok) {
+        const { username } = await res.json();
+        currentUser = username;
+        localStorage.setItem('tw_username', username);
+        document.getElementById('wl-user-badge').textContent = username;
+        await wlLoadFromServer();
+        wlRender();
+        wlRefresh();
+        wlFetchNames(wlTickers());
+        await portfoliosLoad();
+        return;
+      }
+    } catch (_) {}
+    // Token invalid — clear it
+    authToken = null;
+    localStorage.removeItem(TOKEN_KEY);
   }
-  // No valid saved user — show modal
   wlRender();
-  userShowModal();
+  showLoginView();
+  document.getElementById('user-modal').classList.add('show');
 })();
 </script>
 </body>

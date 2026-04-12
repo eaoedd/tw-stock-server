@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import os
+import secrets
 import threading
 import urllib.request
 from datetime import datetime, timedelta
@@ -9,7 +11,7 @@ from pathlib import Path
 from typing import Optional
 
 import yfinance as yf
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import Depends, FastAPI, Header, HTTPException, Query
 from fastapi.responses import HTMLResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 
@@ -223,11 +225,45 @@ def fetch_history(ticker: str, period: str) -> list[dict]:
     return records
 
 
-# ── User / Watchlist endpoints ───────────────────────────────────────────────
+# ── Auth ─────────────────────────────────────────────────────────────────────
+_sessions: dict[str, dict] = {}   # token → {username, expires_at}
+
+
+def _hash_password(password: str) -> str:
+    salt = os.urandom(16)
+    dk = hashlib.pbkdf2_hmac("sha256", password.encode(), salt, 100_000)
+    return salt.hex() + ":" + dk.hex()
+
+
+def _verify_password(password: str, stored: str) -> bool:
+    try:
+        salt_hex, dk_hex = stored.split(":")
+        dk = hashlib.pbkdf2_hmac("sha256", password.encode(), bytes.fromhex(salt_hex), 100_000)
+        return secrets.compare_digest(dk.hex(), dk_hex)
+    except Exception:
+        return False
+
+
+def _create_session(username: str) -> str:
+    token = secrets.token_urlsafe(32)
+    _sessions[token] = {
+        "username": username,
+        "expires_at": (datetime.now() + timedelta(days=30)).isoformat(),
+    }
+    return token
+
+
+def _require_auth(x_auth_token: str = Header(default="")) -> str:
+    session = _sessions.get(x_auth_token)
+    if not session or datetime.now() > datetime.fromisoformat(session["expires_at"]):
+        _sessions.pop(x_auth_token, None)
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    return session["username"]
+
+
+# ── User / Watchlist / Portfolio endpoints ───────────────────────────────────
 USERS_DIR = CACHE_DIR / "users"
 USERS_DIR.mkdir(exist_ok=True)
-
-DEFAULT_WATCHLIST: list = []
 
 
 def _user_path(username: str) -> Path:
@@ -237,45 +273,117 @@ def _user_path(username: str) -> Path:
     return USERS_DIR / f"{safe}.json"
 
 
-@app.get("/users")
-def list_users():
-    users = sorted(f.stem for f in USERS_DIR.glob("*.json"))
-    return {"users": users}
+def _read_user(path: Path) -> dict:
+    data = json.loads(path.read_text())
+    changed = False
+    if "password_hash" not in data:          # migrate old files
+        data["password_hash"] = _hash_password("")
+        changed = True
+    if "portfolios" not in data:
+        data["portfolios"] = []
+        changed = True
+    if changed:
+        path.write_text(json.dumps(data, ensure_ascii=False))
+    return data
+
+
+def _write_user(path: Path, data: dict) -> None:
+    path.write_text(json.dumps(data, ensure_ascii=False))
+
+
+@app.get("/me")
+def get_me(current_user: str = Depends(_require_auth)):
+    return {"username": current_user}
+
+
+@app.post("/login")
+def login(body: dict):
+    username = body.get("username", "").strip()
+    password = body.get("password", "")
+    if not username:
+        raise HTTPException(status_code=400, detail="Username required")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    data = _read_user(path)
+    if not _verify_password(password, data["password_hash"]):
+        raise HTTPException(status_code=401, detail="Invalid username or password")
+    return {"token": _create_session(username), "username": username}
 
 
 @app.post("/users/{username}")
-def create_user(username: str):
+def create_user(username: str, body: dict):
     path = _user_path(username)
     if path.exists():
         raise HTTPException(status_code=409, detail="User already exists")
-    path.write_text(json.dumps({"tickers": DEFAULT_WATCHLIST}, ensure_ascii=False))
-    return {"created": username}
+    password = body.get("password", "")
+    if not password:
+        raise HTTPException(status_code=400, detail="Password required")
+    _write_user(path, {
+        "password_hash": _hash_password(password),
+        "tickers": [],
+        "portfolios": [],
+    })
+    return {"token": _create_session(username), "username": username}
 
 
 @app.get("/watchlist/{username}")
-def get_watchlist(username: str):
+def get_watchlist(username: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
     path = _user_path(username)
     if not path.exists():
         raise HTTPException(status_code=404, detail="User not found")
-    return json.loads(path.read_text())
+    return {"tickers": _read_user(path).get("tickers", [])}
 
 
 @app.put("/watchlist/{username}")
-def save_watchlist(username: str, body: dict):
+def save_watchlist(username: str, body: dict, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
     path = _user_path(username)
     if not path.exists():
         raise HTTPException(status_code=404, detail="User not found")
-    tickers = [str(t).upper() for t in body.get("tickers", []) if t]
-    path.write_text(json.dumps({"tickers": tickers}, ensure_ascii=False))
+    data = _read_user(path)
+    data["tickers"] = [str(t).upper() for t in body.get("tickers", []) if t]
+    _write_user(path, data)
+    return {"ok": True}
+
+
+@app.get("/portfolios/{username}")
+def get_portfolios(username: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"portfolios": _read_user(path).get("portfolios", [])}
+
+
+@app.put("/portfolios/{username}")
+def save_portfolios(username: str, body: dict, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    data["portfolios"] = body.get("portfolios", [])
+    _write_user(path, data)
     return {"ok": True}
 
 
 @app.delete("/users/{username}")
-def delete_user(username: str):
+def delete_user(username: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
     path = _user_path(username)
     if not path.exists():
         raise HTTPException(status_code=404, detail="User not found")
     path.unlink()
+    for tok, s in list(_sessions.items()):
+        if s["username"] == username:
+            del _sessions[tok]
     return {"deleted": username}
 
 
