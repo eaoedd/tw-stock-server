@@ -35,13 +35,87 @@
 
     /* ── Session wrappers ── */
     #session-dataview,
-    #session-simulation {
+    #session-simulation,
+    #session-trades {
       flex: 1;
       display: flex;
       flex-direction: column;
       overflow: hidden;
       min-width: 0;
     }
+
+    input[type="date"]::-webkit-calendar-picker-indicator {
+      filter: invert(60%) sepia(60%) saturate(400%) hue-rotate(190deg);
+      cursor: pointer;
+    }
+    /* ── In Stock session ── */
+    #session-instock { flex-direction: column; }
+    #is-topbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: #161b22;
+      border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    #is-topbar h1 { font-size: 14px; font-weight: 600; color: #e6edf3; margin: 0; flex: 1; }
+    #is-history { flex: 2; min-height: 0; border-bottom: 1px solid #21262d; }
+    #is-body { flex: 3; display: flex; gap: 16px; overflow: hidden; padding: 12px 16px; min-height: 0; }
+    #is-chart-wrap { display: flex; flex-direction: column; align-items: center; flex-shrink: 0; gap: 8px; }
+    #is-pie { display: block; }
+    #is-legend { font-size: 11px; color: #c9d1d9; display: flex; flex-direction: column; gap: 4px; }
+    .is-legend-item { display: flex; align-items: center; gap: 5px; }
+    .is-legend-dot { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0; }
+    #is-table-wrap { flex: 1; overflow-y: auto; min-width: 0; }
+    #is-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #is-table th {
+      text-align: center; padding: 6px 10px; font-size: 11px; font-weight: 600;
+      color: #8b949e; border-bottom: 1px solid #21262d;
+      position: sticky; top: 0; background: #0f1117;
+    }
+    #is-table td { padding: 6px 10px; border-bottom: 1px solid #161b22; color: #c9d1d9; text-align: center; }
+    #is-table tr:hover td { background: #161b22; }
+    #is-footer {
+      flex-shrink: 0; padding: 8px 16px; border-top: 1px solid #21262d;
+      font-size: 11px; color: #8b949e; background: #0d1117;
+    }
+    #is-footer span { color: #e6edf3; font-weight: 600; }
+    /* ── Trades session ── */
+    #st-topbar {
+      display: flex; align-items: center; gap: 8px;
+      padding: 8px 16px; background: #161b22;
+      border-bottom: 1px solid #21262d; flex-shrink: 0;
+    }
+    #st-form-panel {
+      display: none; flex-shrink: 0;
+      padding: 10px 16px; background: #0d1117;
+      border-bottom: 1px solid #21262d;
+      gap: 8px; flex-wrap: wrap; align-items: flex-end;
+    }
+    #st-form-panel.show { display: flex; }
+    .st-field { display: flex; flex-direction: column; gap: 3px; }
+    .st-field label { font-size: 10px; color: #8b949e; text-transform: uppercase; letter-spacing: 0.4px; }
+    .st-field input, .st-field select { font-size: 12px; padding: 5px 8px; width: 100%; }
+    .st-field.w-date input  { width: 120px; }
+    .st-field.w-ticker input { width: 80px; text-transform: uppercase; }
+    .st-field.w-num input   { width: 90px; }
+    .st-field.w-note input  { width: 160px; }
+    #st-body { flex: 1; overflow-y: auto; padding: 12px 16px; }
+    #st-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+    #st-table th {
+      text-align: center; padding: 6px 10px; font-size: 11px; font-weight: 600;
+      color: #8b949e; border-bottom: 1px solid #21262d;
+      position: sticky; top: 0; background: #0f1117;
+    }
+    #st-table th.num, #st-table td.num { text-align: center; }
+    #st-table td { padding: 6px 10px; border-bottom: 1px solid #161b22; color: #c9d1d9; text-align: center; }
+    #st-table tr:hover td { background: #161b22; }
+    .st-buy      { color: #3fb950; font-weight: 600; }
+    .st-sell     { color: #f85149; font-weight: 600; }
+    .st-deposit  { color: #58a6ff; font-weight: 600; }
+    .st-withdraw { color: #f0b429; font-weight: 600; }
+    #st-footer {
+      flex-shrink: 0; padding: 8px 16px; border-top: 1px solid #21262d;
+      background: #161b22; display: flex; gap: 24px; font-size: 12px; color: #8b949e;
+    }
+    #st-footer span { color: #e6edf3; font-weight: 600; }
 
     /* ── Top bar ── */
     #topbar {
@@ -130,28 +204,12 @@
     .badge-cache { background: #1f3a1f; color: #3fb950; }
     .badge-fetch { background: #1f2c3d; color: #58a6ff; }
 
-    /* ── Sharpe bar ── */
-    #sharpebar {
-      display: flex;
-      align-items: center;
-      gap: 14px;
-      padding: 4px 16px;
-      background: #0d1117;
-      border-bottom: 1px solid #21262d;
-      font-size: 12px;
-      flex-shrink: 0;
-      flex-wrap: wrap;
-    }
-    #sharpebar label { color: #8b949e; }
-    #sharpebar select, #sharpebar input[type=number] { padding: 2px 6px; font-size: 12px; width: auto; }
-    #sharpebar input[type=number] { width: 64px; }
     .stat-block { display: flex; gap: 6px; align-items: baseline; }
     .stat-label { color: #8b949e; }
     .stat-val   { color: #e6edf3; font-weight: 600; font-size: 13px; }
     .stat-val.good { color: #3fb950; }
     .stat-val.warn { color: #f0b429; }
     .stat-val.bad  { color: #f85149; }
-    #sharpe-note { color: #484f58; font-size: 11px; }
 
     /* ── dv-main: data-view inner flex row ── */
     #dv-main { display: flex; flex: 1; overflow: hidden; }
@@ -204,12 +262,6 @@
     #chart-panel { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
     #price-chart { flex: 3; }
     #volume-chart { flex: 1; }
-    #sharpe-chart-label {
-      font-size: 11px; color: #484f58; padding: 2px 8px;
-      background: #0f1117; border-top: 1px solid #21262d;
-      flex-shrink: 0; user-select: none;
-    }
-    #sharpe-chart { flex: 1; }
 
     /* ── Table panel ── */
     #table-panel { width: 300px; border-left: 1px solid #21262d; display: flex; flex-direction: column; overflow: hidden; }
@@ -304,6 +356,7 @@
     #wl-user-badge {
       font-size: 11px; color: #58a6ff; cursor: pointer; font-weight: 600;
       white-space: nowrap; overflow: hidden; text-overflow: ellipsis; max-width: 100px;
+      text-transform: none !important; letter-spacing: normal !important;
     }
     #wl-user-badge:hover { text-decoration: underline; }
   </style>
@@ -314,6 +367,8 @@
 <div id="navbar">
   <button class="nav-tab active" id="tab-dataview" onclick="switchSession('dataview')">Data View</button>
   <button class="nav-tab" id="tab-simulation" onclick="switchSession('simulation')">Simulation</button>
+  <button class="nav-tab" id="tab-trades" onclick="switchSession('trades')">Trades</button>
+  <button class="nav-tab" id="tab-instock" onclick="switchSession('instock')">In Stock</button>
 </div>
 
 <!-- ── App body: watchlist + sessions side by side ── -->
@@ -398,36 +453,11 @@
       <span id="status-text">Enter a ticker symbol</span>
     </div>
 
-    <div id="sharpebar">
-      <label>Sharpe Ratio</label>
-      <div class="divider"></div>
-      <label>Window
-        <select id="sharpe-window" onchange="updateSharpe()">
-          <option value="21">1 Month</option>
-          <option value="63">3 Months</option>
-          <option value="126">6 Months</option>
-          <option value="252" selected>1 Year</option>
-          <option value="504">2 Years</option>
-          <option value="0">All Data</option>
-        </select>
-      </label>
-      <label>Risk-free rate (annual %)
-        <input type="number" id="sharpe-rfr" value="2.0" step="0.1" min="0" onchange="updateSharpe()" />
-      </label>
-      <div class="divider"></div>
-      <div class="stat-block"><span class="stat-label">Sharpe</span><span class="stat-val" id="s-sharpe">—</span></div>
-      <div class="stat-block"><span class="stat-label">Ann. Return</span><span class="stat-val" id="s-ret">—</span></div>
-      <div class="stat-block"><span class="stat-label">Ann. Volatility</span><span class="stat-val" id="s-vol">—</span></div>
-      <div class="stat-block"><span class="stat-label">Max Drawdown</span><span class="stat-val" id="s-dd">—</span></div>
-      <span id="sharpe-note"></span>
-    </div>
 
     <div id="dv-main">
       <div id="chart-panel">
         <div id="price-chart"></div>
         <div id="volume-chart"></div>
-        <div id="sharpe-chart-label">Rolling Sharpe</div>
-        <div id="sharpe-chart"></div>
       </div>
       <div id="table-panel">
         <h3>Recent Data</h3>
@@ -451,7 +481,7 @@
       <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()">Reset</button>
       <div class="divider"></div>
       <label>Period
-        <select id="bt-period-select">
+        <select id="bt-period-select" onchange="runBacktest()">
           <option value="1mo">1M</option>
           <option value="3mo">3M</option>
           <option value="6mo">6M</option>
@@ -465,7 +495,6 @@
         <input type="number" id="bt-rfr" value="2.0" step="0.1" min="0" />
       </label>
       <span style="color:#484f58;font-size:11px">format: TICKER:WEIGHT, ... (CASH earns RFR)</span>
-      <button onclick="runBacktest()" style="margin-left:auto">Run All</button>
     </div>
 
     <div id="sim-results">
@@ -487,6 +516,123 @@
 
   </div><!-- /#session-simulation -->
 
+  <!-- ══════════════ SESSION: Trades ══════════════ -->
+  <div id="session-trades" style="display:none">
+    <div id="st-topbar">
+      <h1>Trades</h1>
+      <select id="st-period" onchange="stOnPeriodChange()">
+        <option value="all">All time</option>
+        <option value="year">This year</option>
+        <option value="6m">Last 6 months</option>
+        <option value="3m">Last 3 months</option>
+        <option value="1m">This month</option>
+        <option value="custom">Custom…</option>
+      </select>
+      <span id="st-custom-range" style="display:none; align-items:center; gap:4px;">
+        <input type="date" id="st-custom-from" onchange="stRender()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+        <span style="color:#8b949e;font-size:11px">to</span>
+        <input type="date" id="st-custom-to" onchange="stRender()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+      </span>
+      <button onclick="stToggleForm()">+ New Trade</button>
+    </div>
+    <div id="st-form-panel">
+      <div class="st-field w-date">
+        <label>Date</label>
+        <input type="date" id="st-date" />
+      </div>
+      <div class="st-field w-ticker" id="st-field-ticker">
+        <label>Ticker</label>
+        <input type="text" id="st-ticker" placeholder="0050" />
+      </div>
+      <div class="st-field">
+        <label>Action</label>
+        <select id="st-action" onchange="stOnActionChange()">
+          <option value="buy">Buy</option>
+          <option value="sell">Sell</option>
+          <option value="deposit">Deposit</option>
+          <option value="withdraw">Withdraw</option>
+        </select>
+      </div>
+      <div class="st-field w-num" id="st-field-shares">
+        <label id="st-shares-label">Shares</label>
+        <input type="number" id="st-shares" placeholder="1000" min="0" />
+      </div>
+      <div class="st-field w-num" id="st-field-price">
+        <label>Price</label>
+        <input type="number" id="st-price" placeholder="80.5" min="0" step="0.01" />
+      </div>
+      <div class="st-field w-num" id="st-field-tax">
+        <label>Tax</label>
+        <input type="number" id="st-tax" placeholder="0" min="0" step="0.01" />
+      </div>
+      <div class="st-field w-num" id="st-field-fee">
+        <label>Fee</label>
+        <input type="number" id="st-fee" placeholder="0" min="0" step="0.01" />
+      </div>
+      <div class="st-field w-note">
+        <label>Note</label>
+        <input type="text" id="st-note" placeholder="Optional note" />
+      </div>
+      <button onclick="stAddTrade()" style="align-self:flex-end">Add</button>
+      <button class="secondary" onclick="stToggleForm()" style="align-self:flex-end">Cancel</button>
+    </div>
+    <div id="st-body">
+      <table id="st-table">
+        <thead>
+          <tr>
+            <th>Date</th><th>Ticker</th><th>Action</th>
+            <th class="num">Shares</th><th class="num">Price</th>
+            <th class="num">Amount</th><th class="num">Tax</th><th class="num">Fee</th>
+            <th>Note</th><th></th>
+          </tr>
+        </thead>
+        <tbody id="st-tbody"></tbody>
+      </table>
+    </div>
+    <div id="st-footer">
+      Trades: <span id="st-count">0</span>
+      &nbsp;·&nbsp; Total amount: <span id="st-total-amount">0</span>
+      &nbsp;·&nbsp; Total tax: <span id="st-total-tax">0</span>
+      &nbsp;·&nbsp; Total fee: <span id="st-total-fee">0</span>
+    </div>
+  </div><!-- /#session-trades -->
+
+  <!-- ══════════════ SESSION: In Stock ══════════════ -->
+  <div id="session-instock" style="display:none">
+    <div id="is-topbar">
+      <h1>In Stock</h1>
+    </div>
+    <div id="is-history"></div>
+    <div id="is-body">
+      <div id="is-chart-wrap">
+        <canvas id="is-pie" width="220" height="220"></canvas>
+        <div id="is-legend"></div>
+      </div>
+      <div id="is-table-wrap">
+      <table id="is-table">
+        <thead>
+          <tr>
+            <th>Ticker</th>
+            <th class="num">Shares</th>
+            <th class="num">Avg Cost</th>
+            <th class="num">Current</th>
+            <th class="num">Total Cost</th>
+            <th class="num">Mkt Value</th>
+            <th class="num">Unrealized</th>
+            <th class="num">Unrealized %</th>
+          </tr>
+        </thead>
+        <tbody id="is-tbody"></tbody>
+      </table>
+      </div>
+    </div>
+    <div id="is-footer">
+      Positions: <span id="is-count">0</span>
+      &nbsp;·&nbsp; Total mkt value: <span id="is-total-value">0</span>
+      &nbsp;·&nbsp; Unrealized P&amp;L: <span id="is-total-unrealized">0</span>
+    </div>
+  </div><!-- /#session-instock -->
+
 </div><!-- /#app-body -->
 
 <div id="loading">Loading...</div>
@@ -501,8 +647,15 @@ function switchSession(session) {
   activeSession = session;
   document.getElementById('session-dataview').style.display   = session === 'dataview'   ? 'flex' : 'none';
   document.getElementById('session-simulation').style.display = session === 'simulation' ? 'flex' : 'none';
+  document.getElementById('session-trades').style.display     = session === 'trades'     ? 'flex' : 'none';
+  document.getElementById('session-instock').style.display    = session === 'instock'    ? 'flex' : 'none';
   document.getElementById('tab-dataview').classList.toggle('active',   session === 'dataview');
   document.getElementById('tab-simulation').classList.toggle('active', session === 'simulation');
+  document.getElementById('tab-trades').classList.toggle('active',     session === 'trades');
+  document.getElementById('tab-instock').classList.toggle('active',    session === 'instock');
+  document.getElementById('watchlist-panel').style.display = session === 'instock' ? 'none' : '';
+  if (session === 'instock') requestAnimationFrame(() => isRefresh());
+  if (session === 'simulation') runBacktest();
   if (session === 'simulation' && btChart) {
     requestAnimationFrame(() => {
       const el = document.getElementById('bt-chart-container');
@@ -540,51 +693,36 @@ const ma60Series = priceChart.addLineSeries({ color: '#bf5af2', lineWidth: 1, pr
 const volSeries  = volChart.addHistogramSeries({ priceFormat: { type: 'volume' }, priceScaleId: '' });
 volChart.priceScale('').applyOptions({ scaleMargins: { top: 0.1, bottom: 0 } });
 
-const sharpeEl    = document.getElementById('sharpe-chart');
-const sharpeChart = LightweightCharts.createChart(sharpeEl, chartOpts(sharpeEl));
-const sharpeSeries = sharpeChart.addLineSeries({
-  color: '#58a6ff', lineWidth: 1, priceLineVisible: false, lastValueVisible: true,
-});
-[{ price: 1, color: '#3fb950', title: '1' },
- { price: 0, color: '#484f58', title: '0' },
- { price: -1, color: '#f85149', title: '-1' }].forEach(cfg =>
-  sharpeSeries.createPriceLine({ ...cfg, lineWidth: 1,
-    lineStyle: LightweightCharts.LineStyle.Dashed, axisLabelVisible: true })
-);
-
-// Three-way time sync
+// Two-way time sync
 let isSyncingRange = false;
 function syncRange(source, range) {
   if (isSyncingRange || !range) return;
   isSyncingRange = true;
-  [priceChart, volChart, sharpeChart].filter(c => c !== source)
+  [priceChart, volChart].filter(c => c !== source)
     .forEach(c => c.timeScale().setVisibleRange(range));
   isSyncingRange = false;
 }
 priceChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(priceChart, r));
 volChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(volChart, r));
-sharpeChart.timeScale().subscribeVisibleTimeRangeChange(r => syncRange(sharpeChart, r));
 
 const ro = new ResizeObserver(() => {
   priceChart.applyOptions({ width: priceEl.clientWidth, height: priceEl.clientHeight });
   volChart.applyOptions({ width: volEl.clientWidth, height: volEl.clientHeight });
-  sharpeChart.applyOptions({ width: sharpeEl.clientWidth, height: sharpeEl.clientHeight });
 });
 ro.observe(priceEl);
 ro.observe(volEl);
-ro.observe(sharpeEl);
 
 priceChart.subscribeCrosshairMove(param => {
   if (!param.time || !param.seriesData.size) return;
   const candle = param.seriesData.get(candleSeries);
-  const bar    = param.seriesData.get(volSeries);
   if (candle) {
     document.getElementById('i-open').textContent  = candle.open;
     document.getElementById('i-high').textContent  = candle.high;
     document.getElementById('i-low').textContent   = candle.low;
     document.getElementById('i-close').textContent = candle.close;
+    const rec = loadedRecords.find(r => r.date === param.time);
+    if (rec) document.getElementById('i-vol').textContent = fmtVol(rec.volume);
   }
-  if (bar) document.getElementById('i-vol').textContent = fmtVol(bar.value);
 });
 
 // ═══════════════════════════════════════════════
@@ -632,7 +770,6 @@ async function loadData(forceRefresh = false) {
     loadedRecords = data.records;
     renderCharts(data.ticker, data.records);
     renderTable(data.records);
-    updateSharpe();
     wlSetActive(ticker);
     const badge = data.source === 'cache'
       ? `<span class="badge badge-cache">cached</span>`
@@ -658,7 +795,6 @@ function renderCharts(ticker, records) {
   ma60Series.setData(calcMA(candles, 60));
   priceChart.timeScale().fitContent();
   volChart.timeScale().fitContent();
-  sharpeChart.timeScale().fitContent();
   const last = records[records.length - 1];
   document.getElementById('i-open').textContent  = last.open;
   document.getElementById('i-high').textContent  = last.high;
@@ -687,79 +823,6 @@ document.getElementById('ticker-input').addEventListener('input', () => {
 document.getElementById('ticker-input').addEventListener('keydown', e => { if (e.key === 'Enter') { clearTimeout(_tickerInputTimer); loadData(); } });
 document.getElementById('period-select').addEventListener('change', () => loadData(true));
 
-// ═══════════════════════════════════════════════
-// Sharpe Ratio
-// ═══════════════════════════════════════════════
-function calcRollingSharpe(records, windowDays, rfrAnn) {
-  const rfrDaily = rfrAnn / 252;
-  const result = [];
-  for (let i = windowDays; i < records.length; i++) {
-    const slice = records.slice(i - windowDays, i + 1);
-    const returns = [];
-    for (let j = 1; j < slice.length; j++)
-      returns.push((slice[j].close - slice[j-1].close) / slice[j-1].close);
-    const n = returns.length;
-    const mean = returns.reduce((a, b) => a + b, 0) / n;
-    const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
-    const stddev = Math.sqrt(variance);
-    if (stddev === 0) continue;
-    const annVol = stddev * Math.sqrt(252);
-    const sharpe = ((mean - rfrDaily) * 252) / annVol;
-    result.push({ time: records[i].date, value: parseFloat(sharpe.toFixed(4)) });
-  }
-  return result;
-}
-
-function updateSharpe() {
-  if (loadedRecords.length < 2) return;
-  const days   = parseInt(document.getElementById('sharpe-window').value);
-  const rfrAnn = parseFloat(document.getElementById('sharpe-rfr').value) / 100;
-  const window = days > 0 ? loadedRecords.slice(-days) : loadedRecords;
-  if (window.length < 2) { document.getElementById('sharpe-note').textContent = 'Not enough data'; return; }
-
-  const returns = [];
-  for (let i = 1; i < window.length; i++)
-    returns.push((window[i].close - window[i-1].close) / window[i-1].close);
-
-  const n        = returns.length;
-  const mean     = returns.reduce((a, b) => a + b, 0) / n;
-  const variance = returns.reduce((a, b) => a + (b - mean) ** 2, 0) / (n - 1);
-  const stddev   = Math.sqrt(variance);
-  const annReturn = mean * 252;
-  const annVol    = stddev * Math.sqrt(252);
-  const rfrDaily  = rfrAnn / 252;
-  const sharpe    = stddev === 0 ? 0 : ((mean - rfrDaily) * 252) / annVol;
-
-  let peak = -Infinity, maxDD = 0;
-  for (const r of window) {
-    if (r.close > peak) peak = r.close;
-    const dd = (peak - r.close) / peak;
-    if (dd > maxDD) maxDD = dd;
-  }
-
-  const fmt2 = v => (v >= 0 ? '+' : '') + (v * 100).toFixed(2) + '%';
-  const sharpeColor = sharpe >= 1 ? 'good' : sharpe >= 0 ? 'warn' : 'bad';
-  const sEl = document.getElementById('s-sharpe');
-  sEl.textContent = sharpe.toFixed(3);
-  sEl.className   = `stat-val ${sharpeColor}`;
-  document.getElementById('s-ret').textContent = fmt2(annReturn);
-  document.getElementById('s-ret').className   = `stat-val ${annReturn >= 0 ? 'good' : 'bad'}`;
-  document.getElementById('s-vol').textContent = (annVol * 100).toFixed(2) + '%';
-  document.getElementById('s-vol').className   = 'stat-val';
-  document.getElementById('s-dd').textContent  = '-' + (maxDD * 100).toFixed(2) + '%';
-  document.getElementById('s-dd').className    = `stat-val ${maxDD > 0.2 ? 'bad' : maxDD > 0.1 ? 'warn' : 'good'}`;
-  document.getElementById('sharpe-note').textContent =
-    `(${window[0].date} → ${window[window.length-1].date}, ${n} trading days)`;
-
-  const rollingDays = days > 0 ? days : loadedRecords.length - 1;
-  if (loadedRecords.length > rollingDays + 1) {
-    sharpeSeries.setData(calcRollingSharpe(loadedRecords, rollingDays, rfrAnn));
-    const currentRange = priceChart.timeScale().getVisibleRange();
-    if (currentRange) sharpeChart.timeScale().setVisibleRange(currentRange);
-  } else {
-    sharpeSeries.setData([]);
-  }
-}
 
 // ═══════════════════════════════════════════════
 // Auth
@@ -874,6 +937,7 @@ async function _onLoginSuccess(token, username) {
   wlRefresh();
   wlFetchNames(wlTickers());
   await portfoliosLoad();
+  await stLoad();
 }
 
 function doSwitchUser() {
@@ -947,6 +1011,7 @@ function wlAdd() {
 }
 
 function wlRemove(ticker) {
+  if (!confirm(`Remove ${ticker} from watchlist?`)) return;
   wlData = wlData.filter(t => t !== ticker);
   wlSave();
   wlRender();
@@ -996,6 +1061,13 @@ function wlRender() {
 
 function wlSelect(ticker) {
   if (activeSession === 'simulation') { btAddTickerFromWatchlist(ticker); return; }
+  if (activeSession === 'trades') {
+    const panel = document.getElementById('st-form-panel');
+    if (!panel.classList.contains('show')) stToggleForm();
+    document.getElementById('st-ticker').value = ticker;
+    document.getElementById('st-shares').focus();
+    return;
+  }
   document.getElementById('ticker-input').value = ticker;
   loadData();
 }
@@ -1071,15 +1143,22 @@ function ptRenderRows() {
     <div class="pt-row${i === btActivePortfolioIdx ? ' pt-active' : ''}">
       <span class="pt-color-dot" style="background:${BT_COLORS[i]}"></span>
       <input class="pt-name-input" type="text" value="${p.name.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value;portfoliosSave()" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value;portfoliosSave();btScheduleRun()" />
       <input class="pt-alloc-input" type="text" placeholder="e.g. 0050:60, 00675L:40"
         value="${p.alloc.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value;portfoliosSave()" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value;portfoliosSave();btScheduleRun()" />
       <button class="icon-btn" title="Clear alloc" onclick="ptClearRow(${i})">⌫</button>
       ${btPortfolios.length > 1
         ? `<button class="icon-btn" onclick="ptRemoveRow(${i})">✕</button>`
         : ''}
     </div>`).join('');
+}
+
+// ── Auto-run backtest ────────────────────────────────────────────────────────
+let _btRunTimer = null;
+function btScheduleRun() {
+  clearTimeout(_btRunTimer);
+  _btRunTimer = setTimeout(() => runBacktest(), 800);
 }
 
 // ── Portfolio server sync ────────────────────────────────────────────────────
@@ -1121,6 +1200,7 @@ function ptClearRow(i) {
   btPortfolios[i].alloc = '';
   ptRenderRows();
   portfoliosSave();
+  btScheduleRun();
 }
 
 function ptRemoveRow(i) {
@@ -1128,6 +1208,7 @@ function ptRemoveRow(i) {
   if (btActivePortfolioIdx >= btPortfolios.length) btActivePortfolioIdx = btPortfolios.length - 1;
   ptRenderRows();
   portfoliosSave();
+  btScheduleRun();
 }
 
 function btAddTickerFromWatchlist(ticker) {
@@ -1446,6 +1527,454 @@ async function runBacktest() {
 }
 
 // ═══════════════════════════════════════════════
+// Trades
+// ═══════════════════════════════════════════════
+let stTrades = [];
+
+function stToggleForm() {
+  const panel = document.getElementById('st-form-panel');
+  const showing = panel.classList.toggle('show');
+  if (showing) {
+    // Default date to today
+    const today = new Date().toISOString().slice(0, 10);
+    document.getElementById('st-date').value = today;
+    document.getElementById('st-ticker').focus();
+  }
+}
+
+async function stLoad() {
+  if (!currentUser) return;
+  try {
+    const res = await authFetch(`/trades/${encodeURIComponent(currentUser)}`);
+    if (!res.ok) return;
+    stTrades = (await res.json()).trades || [];
+    stRender();
+  } catch (_) {}
+}
+
+function stOnActionChange() {
+  const action = document.getElementById('st-action').value;
+  const isCash = action === 'deposit' || action === 'withdraw';
+  document.getElementById('st-field-ticker').style.display = isCash ? 'none' : '';
+  document.getElementById('st-field-price').style.display  = isCash ? 'none' : '';
+  document.getElementById('st-field-tax').style.display    = isCash ? 'none' : '';
+  document.getElementById('st-field-fee').style.display    = isCash ? 'none' : '';
+  document.getElementById('st-shares-label').textContent   = isCash ? 'Amount (TWD)' : 'Shares';
+  document.getElementById('st-shares').placeholder         = isCash ? '1000000' : '1000';
+  if (isCash) document.getElementById('st-shares').focus();
+  else        document.getElementById('st-ticker').focus();
+}
+
+async function stAddTrade() {
+  const date   = document.getElementById('st-date').value;
+  const action = document.getElementById('st-action').value;
+  const isCash = action === 'deposit' || action === 'withdraw';
+  const ticker = isCash ? 'TWD' : document.getElementById('st-ticker').value.trim().toUpperCase();
+  const shares = parseFloat(document.getElementById('st-shares').value) || 0;
+  const price  = isCash ? 1 : (parseFloat(document.getElementById('st-price').value) || 0);
+  const tax    = isCash ? 0 : (parseFloat(document.getElementById('st-tax').value)   || 0);
+  const fee    = isCash ? 0 : (parseFloat(document.getElementById('st-fee').value)   || 0);
+  const note   = document.getElementById('st-note').value.trim();
+
+  if (!date || shares <= 0) {
+    alert('Date and amount are required.');
+    return;
+  }
+  if (!isCash && (!ticker || price <= 0)) {
+    alert('Ticker and price are required.');
+    return;
+  }
+  try {
+    const res = await authFetch(`/trades/${encodeURIComponent(currentUser)}`, {
+      method: 'POST',
+      body: JSON.stringify({ date, ticker, action, shares, price, tax, fee, note }),
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    stTrades.push(data.trade);
+
+    // Auto-create balancing cash trade
+    if (action === 'buy' || action === 'sell') {
+      const cashAmount = action === 'buy'
+        ? shares * price + tax + fee
+        : shares * price - tax - fee;
+      const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
+      const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}`, {
+        method: 'POST',
+        body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})` }),
+      });
+      if (cashRes.ok) stTrades.push((await cashRes.json()).trade);
+    }
+
+    stTrades.sort((a, b) => b.date.localeCompare(a.date));
+    stRender();
+    isRefresh();
+    // Clear form fields except date and action
+    ['st-ticker','st-shares','st-price','st-tax','st-fee','st-note'].forEach(id =>
+      document.getElementById(id).value = '');
+    if (isCash) document.getElementById('st-price').focus();
+    else        document.getElementById('st-ticker').focus();
+  } catch (_) {}
+}
+
+async function stDeleteTrade(id) {
+  if (!confirm('Delete this trade?')) return;
+  try {
+    const res = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${id}`, { method: 'DELETE' });
+    if (!res.ok) return;
+    stTrades = stTrades.filter(t => t.id !== id);
+    stRender();
+    isRefresh();
+  } catch (_) {}
+}
+
+function stOnPeriodChange() {
+  const period = document.getElementById('st-period').value;
+  const customRange = document.getElementById('st-custom-range');
+  customRange.style.display = period === 'custom' ? 'flex' : 'none';
+  stRender();
+}
+
+function stFilteredTrades() {
+  const period = document.getElementById('st-period')?.value || 'all';
+  if (period === 'all') return stTrades;
+  if (period === 'custom') {
+    const from = document.getElementById('st-custom-from').value;
+    const to   = document.getElementById('st-custom-to').value;
+    return stTrades.filter(t => (!from || t.date >= from) && (!to || t.date <= to));
+  }
+  const now = new Date();
+  let cutoff;
+  if (period === 'year') {
+    cutoff = `${now.getFullYear()}-01-01`;
+  } else if (period === '6m') {
+    const d = new Date(now); d.setMonth(d.getMonth() - 6);
+    cutoff = d.toISOString().slice(0, 10);
+  } else if (period === '3m') {
+    const d = new Date(now); d.setMonth(d.getMonth() - 3);
+    cutoff = d.toISOString().slice(0, 10);
+  } else if (period === '1m') {
+    cutoff = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-01`;
+  }
+  return stTrades.filter(t => t.date >= cutoff);
+}
+
+function stRender() {
+  const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const filtered = stFilteredTrades();
+  const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
+  document.getElementById('st-tbody').innerHTML = sorted.map(t => {
+    const amount = t.shares * t.price;
+    return `<tr>
+      <td>${t.date}</td>
+      <td><strong>${t.ticker}</strong></td>
+      <td class="st-${t.action}">${{buy:'Buy',sell:'Sell',deposit:'Deposit',withdraw:'Withdraw'}[t.action] ?? t.action}</td>
+      <td class="num">${t.shares.toLocaleString()}</td>
+      <td class="num">${fmt(t.price)}</td>
+      <td class="num">${fmt(amount)}</td>
+      <td class="num">${fmt(t.tax)}</td>
+      <td class="num">${fmt(t.fee || 0)}</td>
+      <td style="color:#8b949e">${t.note || ''}</td>
+      <td><button class="icon-btn" style="color:#484f58"
+        onclick="stDeleteTrade('${t.id}')">✕</button></td>
+    </tr>`;
+  }).join('');
+
+  const totalAmount = filtered.reduce((s, t) => s + t.shares * t.price, 0);
+  const totalTax    = filtered.reduce((s, t) => s + t.tax, 0);
+  const totalFee    = filtered.reduce((s, t) => s + (t.fee || 0), 0);
+  document.getElementById('st-count').textContent        = filtered.length;
+  document.getElementById('st-total-amount').textContent = fmt(totalAmount);
+  document.getElementById('st-total-tax').textContent    = fmt(totalTax);
+  document.getElementById('st-total-fee').textContent    = fmt(totalFee);
+}
+
+// ═══════════════════════════════════════════════
+// In Stock
+// ═══════════════════════════════════════════════
+
+let isPrices = {};  // ticker → latest close price
+
+// Compute positions from stTrades using average cost method.
+// avg cost per share includes tax and fee proportionally.
+function isComputePositions() {
+  const lots = {};       // ticker → [{shares, costPerShare}]  (FIFO queue)
+  const realized = {};   // ticker → realizedPnL
+  let twdBalance = 0;
+
+  const sorted = [...stTrades].sort((a, b) => a.date.localeCompare(b.date));
+  for (const t of sorted) {
+    if (t.action === 'deposit') {
+      twdBalance += t.shares;
+    } else if (t.action === 'withdraw') {
+      twdBalance -= t.shares;
+    } else if (t.action === 'buy') {
+      if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
+      const costPerShare = (t.shares * t.price + (t.tax || 0) + (t.fee || 0)) / t.shares;
+      lots[t.ticker].push({ shares: t.shares, costPerShare });
+    } else if (t.action === 'sell') {
+      if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
+      const proceeds = t.shares * t.price - (t.tax || 0) - (t.fee || 0);
+      let remaining = t.shares;
+      let costOfSold = 0;
+      while (remaining > 0.0001 && lots[t.ticker].length > 0) {
+        const lot = lots[t.ticker][0];
+        const consumed = Math.min(lot.shares, remaining);
+        costOfSold += consumed * lot.costPerShare;
+        lot.shares -= consumed;
+        remaining  -= consumed;
+        if (lot.shares < 0.0001) lots[t.ticker].shift();
+      }
+      realized[t.ticker] += proceeds - costOfSold;
+    }
+  }
+
+  // Build positions
+  const positions = {};
+  if (Math.abs(twdBalance) > 0.0001)
+    positions['TWD'] = { shares: twdBalance, totalCost: twdBalance, realizedPnL: 0 };
+  for (const [ticker, tickerLots] of Object.entries(lots)) {
+    const shares    = tickerLots.reduce((s, l) => s + l.shares, 0);
+    const totalCost = tickerLots.reduce((s, l) => s + l.shares * l.costPerShare, 0);
+    positions[ticker] = { shares, totalCost, realizedPnL: realized[ticker] || 0 };
+  }
+  return positions;
+}
+
+function isRender() {
+  const fmt    = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const fmtPnl = n => (n >= 0 ? '+' : '') + fmt(n);
+  const clsPnl = n => n >= 0 ? 'style="color:#3fb950"' : 'style="color:#f85149"';
+
+  const positions = isComputePositions();
+  const rows = Object.entries(positions)
+    .filter(([, p]) => Math.abs(p.shares) > 0.0001 || p.realizedPnL !== 0)
+    .sort(([a], [b]) => a.localeCompare(b));
+
+  let totalValue = 0, totalUnrealized = 0, totalCostBasis = 0;
+
+  document.getElementById('is-tbody').innerHTML = rows.map(([ticker, p]) => {
+    const isTWD     = ticker === 'TWD';
+    const avgCost   = isTWD ? 1 : (p.shares > 0 ? p.totalCost / p.shares : 0);
+    const totalCost = isTWD ? null : (p.shares > 0 ? p.totalCost : null);
+    const current   = isTWD ? 1 : isPrices[ticker];
+    const mktValue  = current != null && p.shares !== 0 ? current * p.shares : null;
+    const unrealized = isTWD ? null : (current != null && p.shares > 0 ? (current - avgCost) * p.shares : null);
+    const unrealPct  = isTWD || p.shares <= 0 ? null : (current != null && avgCost > 0 ? (current - avgCost) / avgCost * 100 : null);
+
+    if (mktValue  != null) totalValue      += mktValue;
+    if (unrealized != null) { totalUnrealized += unrealized; totalCostBasis += (totalCost ?? 0); }
+
+    const sharesCell    = p.shares > 0 ? (isTWD ? fmt(p.shares) : p.shares.toLocaleString()) : '—';
+    const avgCostCell   = isTWD ? '1.00' : (p.shares > 0 ? fmt(avgCost) : '—');
+    const currentCell   = current != null ? fmt(current) : '<span style="color:#484f58">—</span>';
+    const totalCostCell = totalCost != null ? fmt(totalCost) : '—';
+    const valueCell    = mktValue != null ? fmt(mktValue) : '<span style="color:#484f58">—</span>';
+    const unrealCell   = unrealized != null
+      ? `<span ${clsPnl(unrealized)}>${fmtPnl(unrealized)}</span>` : '<span style="color:#484f58">—</span>';
+    const unrealPctCell = unrealPct != null
+      ? `<span ${clsPnl(unrealPct)}>${fmtPnl(unrealPct)}%</span>` : '<span style="color:#484f58">—</span>';
+
+    return `<tr>
+      <td><strong>${ticker}</strong></td>
+      <td>${sharesCell}</td>
+      <td>${avgCostCell}</td>
+      <td>${currentCell}</td>
+      <td>${totalCostCell}</td>
+      <td>${valueCell}</td>
+      <td>${unrealCell}</td>
+      <td>${unrealPctCell}</td>
+    </tr>`;
+  }).join('');
+
+  const held = rows.filter(([, p]) => p.shares > 0.0001).length;
+  document.getElementById('is-count').textContent          = held;
+  document.getElementById('is-total-value').textContent    = fmt(totalValue);
+  const totalUnrealPct = totalCostBasis > 0 ? totalUnrealized / totalCostBasis * 100 : 0;
+  document.getElementById('is-total-unrealized').innerHTML =
+    `<span ${clsPnl(totalUnrealized)}>${fmtPnl(totalUnrealized)}</span>` +
+    `<span style="color:#8b949e;margin-left:6px;font-weight:400">(${fmtPnl(totalUnrealPct)}%)</span>`;
+
+  // Pie chart — based on market value (or cost if no price yet)
+  const PIE_COLORS = ['#58a6ff','#3fb950','#f0b429','#bf5af2','#ff7b72',
+                      '#79c0ff','#56d364','#e3b341','#d2a8ff','#ffa198'];
+  const pieSlices = rows
+    .filter(([, p]) => p.shares > 0.0001)
+    .map(([ticker, p], i) => {
+      const value = isPrices[ticker] != null ? isPrices[ticker] * p.shares : p.totalCost;
+      return { ticker, value, color: PIE_COLORS[i % PIE_COLORS.length] };
+    })
+    .filter(s => s.value > 0);
+
+  const canvas = document.getElementById('is-pie');
+  const ctx    = canvas.getContext('2d');
+  const cx = canvas.width / 2, cy = canvas.height / 2, r = cx - 10;
+  ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+  const total = pieSlices.reduce((s, sl) => s + sl.value, 0);
+  if (total > 0) {
+    let angle = -Math.PI / 2;
+    for (const sl of pieSlices) {
+      const sweep = (sl.value / total) * 2 * Math.PI;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.arc(cx, cy, r, angle, angle + sweep);
+      ctx.closePath();
+      ctx.fillStyle = sl.color;
+      ctx.fill();
+      angle += sweep;
+    }
+    // donut hole
+    ctx.beginPath();
+    ctx.arc(cx, cy, r * 0.52, 0, 2 * Math.PI);
+    ctx.fillStyle = '#0f1117';
+    ctx.fill();
+  }
+
+  document.getElementById('is-legend').innerHTML = pieSlices.map(sl =>
+    `<div class="is-legend-item">
+      <span class="is-legend-dot" style="background:${sl.color}"></span>
+      <span>${sl.ticker} &nbsp;<span style="color:#8b949e">${((sl.value/total)*100).toFixed(1)}%</span></span>
+    </div>`
+  ).join('');
+}
+
+function isComputeHistory(allPriceData) {
+  const sorted = [...stTrades].sort((a, b) => a.date.localeCompare(b.date));
+  if (sorted.length === 0) return [];
+
+  // Build date → price map with last-known-price fill
+  const lastPrice = {};
+  const priceLookup = {}; // ticker → date → close
+  for (const [ticker, records] of Object.entries(allPriceData)) {
+    priceLookup[ticker] = {};
+    for (const r of records) priceLookup[ticker][r.date] = r.close;
+  }
+
+  // Union of all dates from all histories, from first trade date
+  const firstDate = sorted[0].date;
+  const allDates = [...new Set(
+    Object.values(allPriceData).flatMap(recs => recs.map(r => r.date))
+  )].filter(d => d >= firstDate).sort();
+
+  const result = [];
+  let tradeIdx = 0;
+  const holdings = {};
+  let twdBalance = 0;
+
+  for (const date of allDates) {
+    // Apply all trades up to and including this date
+    while (tradeIdx < sorted.length && sorted[tradeIdx].date <= date) {
+      const t = sorted[tradeIdx];
+      if (!holdings[t.ticker]) holdings[t.ticker] = 0;
+      if (t.action === 'deposit') {
+        twdBalance += t.shares;
+      } else if (t.action === 'withdraw') {
+        twdBalance -= t.shares;
+      } else if (t.action === 'buy') {
+        holdings[t.ticker] += t.shares;
+      } else if (t.action === 'sell') {
+        holdings[t.ticker] -= t.shares;
+      }
+      tradeIdx++;
+    }
+
+    // Update last known prices
+    for (const [ticker, dateMap] of Object.entries(priceLookup)) {
+      if (dateMap[date] != null) lastPrice[ticker] = dateMap[date];
+    }
+
+    // Compute total value
+    let stockValue = 0;
+    for (const [ticker, shares] of Object.entries(holdings)) {
+      if (shares <= 0.0001 || ticker === 'TWD') continue;
+      const price = lastPrice[ticker];
+      if (price != null) stockValue += shares * price;
+    }
+
+    result.push({ time: date, value: parseFloat((twdBalance + stockValue).toFixed(2)) });
+  }
+
+  return result;
+}
+
+let isHistoryChart = null;
+let isHistorySeries = null;
+
+function isInitHistoryChart() {
+  const el = document.getElementById('is-history');
+  const w = el.clientWidth || 400;
+  const h = el.clientHeight || 200;
+  if (isHistoryChart) {
+    isHistoryChart.applyOptions({ width: w, height: h });
+    return;
+  }
+  isHistoryChart = LightweightCharts.createChart(el, {
+    width: w, height: h,
+    layout: { background: { color: '#0f1117' }, textColor: '#8b949e' },
+    grid: { vertLines: { color: '#21262d' }, horzLines: { color: '#21262d' } },
+    timeScale: { borderColor: '#21262d' },
+    rightPriceScale: { borderColor: '#21262d' },
+    crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+  });
+  isHistorySeries = isHistoryChart.addLineSeries({
+    color: '#58a6ff', lineWidth: 2, priceLineVisible: false, lastValueVisible: true,
+  });
+  const roIs = new ResizeObserver(() => {
+    if (isHistoryChart) isHistoryChart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+  });
+  roIs.observe(el);
+}
+
+async function isRefresh() {
+  const allTickers = [...new Set(stTrades.map(t => t.ticker).filter(t => t !== 'TWD'))];
+  if (allTickers.length === 0) { isRender(); return; }
+
+  document.getElementById('loading').classList.add('show');
+  try {
+    // Fetch full history (cached) for the chart
+    const histResults = await Promise.allSettled(
+      allTickers.map(t => fetch(`/history/${t}?period=max`).then(r => r.json()))
+    );
+    const allPriceData = {};
+    histResults.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value.records?.length) {
+        allPriceData[allTickers[i]] = r.value.records;
+        isPrices[allTickers[i]] = r.value.records.at(-1).close;
+      }
+    });
+
+    // Fetch fresh 5d data to get today's price (force refresh)
+    const freshResults = await Promise.allSettled(
+      allTickers.map(t => fetch(`/history/${t}?period=5d&refresh=true`).then(r => r.json()))
+    );
+    freshResults.forEach((r, i) => {
+      if (r.status === 'fulfilled' && r.value.records?.length) {
+        const fresh = r.value.records;
+        isPrices[allTickers[i]] = fresh.at(-1).close;
+        // Patch the last few records into allPriceData for the history chart
+        if (allPriceData[allTickers[i]]) {
+          const existing = allPriceData[allTickers[i]];
+          const lastExistingDate = existing.at(-1)?.date;
+          const newRecords = fresh.filter(r => r.date > lastExistingDate);
+          if (newRecords.length > 0) allPriceData[allTickers[i]].push(...newRecords);
+        }
+      }
+    });
+
+    isInitHistoryChart();
+    const histData = isComputeHistory(allPriceData);
+    if (histData.length > 0) {
+      isHistorySeries.setData(histData);
+      isHistoryChart.timeScale().fitContent();
+    }
+    isRender();
+  } finally {
+    document.getElementById('loading').classList.remove('show');
+  }
+}
+
+// ═══════════════════════════════════════════════
 // Boot
 // ═══════════════════════════════════════════════
 ptInitRows();
@@ -1467,6 +1996,7 @@ loadData();
         wlRefresh();
         wlFetchNames(wlTickers());
         await portfoliosLoad();
+        await stLoad();
         return;
       }
     } catch (_) {}

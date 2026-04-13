@@ -373,6 +373,54 @@ def save_portfolios(username: str, body: dict, current_user: str = Depends(_requ
     return {"ok": True}
 
 
+@app.get("/trades/{username}")
+def get_trades(username: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    return {"trades": _read_user(path).get("trades", [])}
+
+
+@app.post("/trades/{username}")
+def add_trade(username: str, body: dict, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    trade = {
+        "id":     secrets.token_hex(8),
+        "date":   str(body.get("date", "")),
+        "ticker": str(body.get("ticker", "")).upper(),
+        "action": str(body.get("action", "buy")).lower(),
+        "shares": float(body.get("shares", 0)),
+        "price":  float(body.get("price", 0)),
+        "tax":    float(body.get("tax", 0)),
+        "fee":    float(body.get("fee", 0)),
+        "note":   str(body.get("note", "")),
+    }
+    data.setdefault("trades", []).append(trade)
+    _write_user(path, data)
+    return {"trade": trade}
+
+
+@app.delete("/trades/{username}/{trade_id}")
+def delete_trade(username: str, trade_id: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    trades = data.get("trades", [])
+    data["trades"] = [t for t in trades if t["id"] != trade_id]
+    _write_user(path, data)
+    return {"ok": True}
+
+
 @app.delete("/users/{username}")
 def delete_user(username: str, current_user: str = Depends(_require_auth)):
     if current_user != username:
