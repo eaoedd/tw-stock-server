@@ -392,19 +392,45 @@ def add_trade(username: str, body: dict, current_user: str = Depends(_require_au
         raise HTTPException(status_code=404, detail="User not found")
     data = _read_user(path)
     trade = {
-        "id":     secrets.token_hex(8),
-        "date":   str(body.get("date", "")),
-        "ticker": str(body.get("ticker", "")).upper(),
-        "action": str(body.get("action", "buy")).lower(),
-        "shares": float(body.get("shares", 0)),
-        "price":  float(body.get("price", 0)),
-        "tax":    float(body.get("tax", 0)),
-        "fee":    float(body.get("fee", 0)),
-        "note":   str(body.get("note", "")),
+        "id":       secrets.token_hex(8),
+        "date":     str(body.get("date", "")),
+        "ticker":   str(body.get("ticker", "")).upper(),
+        "action":   str(body.get("action", "buy")).lower(),
+        "shares":   float(body.get("shares", 0)),
+        "price":    float(body.get("price", 0)),
+        "tax":      float(body.get("tax", 0)),
+        "fee":      float(body.get("fee", 0)),
+        "note":     str(body.get("note", "")),
+        "linkedId": str(body.get("linkedId", "")),
     }
     data.setdefault("trades", []).append(trade)
     _write_user(path, data)
     return {"trade": trade}
+
+
+@app.put("/trades/{username}/{trade_id}")
+def update_trade(username: str, trade_id: str, body: dict, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    trades = data.get("trades", [])
+    for t in trades:
+        if t["id"] == trade_id:
+            t["date"]   = str(body.get("date",   t["date"]))
+            t["ticker"] = str(body.get("ticker", t["ticker"])).upper()
+            t["action"] = str(body.get("action", t["action"])).lower()
+            t["shares"] = float(body.get("shares", t["shares"]))
+            t["price"]  = float(body.get("price",  t["price"]))
+            t["tax"]      = float(body.get("tax",      t["tax"]))
+            t["fee"]      = float(body.get("fee",      t["fee"]))
+            t["note"]     = str(body.get("note",      t["note"]))
+            t["linkedId"] = str(body.get("linkedId",  t.get("linkedId", "")))
+            _write_user(path, data)
+            return {"trade": t}
+    raise HTTPException(status_code=404, detail="Trade not found")
 
 
 @app.delete("/trades/{username}/{trade_id}")
@@ -416,9 +442,57 @@ def delete_trade(username: str, trade_id: str, current_user: str = Depends(_requ
         raise HTTPException(status_code=404, detail="User not found")
     data = _read_user(path)
     trades = data.get("trades", [])
-    data["trades"] = [t for t in trades if t["id"] != trade_id]
+    deleted = {trade_id}
+    # cascade: also delete any trade linked to this one
+    for t in trades:
+        if t.get("linkedId") == trade_id:
+            deleted.add(t["id"])
+    data["trades"] = [t for t in trades if t["id"] not in deleted]
     _write_user(path, data)
-    return {"ok": True}
+    return {"ok": True, "deleted": list(deleted)}
+
+
+@app.get("/users/{username}/export")
+def export_user(username: str, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    export = {
+        "username": username,
+        "exported_at": datetime.utcnow().isoformat() + "Z",
+        "trades":     data.get("trades", []),
+        "watchlist":  data.get("tickers", []),
+        "portfolios": data.get("portfolios", []),
+    }
+    from fastapi.responses import Response
+    return Response(
+        content=json.dumps(export, ensure_ascii=False, indent=2),
+        media_type="application/json",
+        headers={"Content-Disposition": f'attachment; filename="{username}_backup.json"'},
+    )
+
+
+@app.post("/users/{username}/import")
+def import_user(username: str, body: dict, current_user: str = Depends(_require_auth)):
+    if current_user != username:
+        raise HTTPException(status_code=403, detail="Forbidden")
+    path = _user_path(username)
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="User not found")
+    data = _read_user(path)
+    if "trades" in body:
+        data["trades"] = body["trades"]
+    if "watchlist" in body:
+        data["tickers"] = body["watchlist"]
+    if "portfolios" in body:
+        data["portfolios"] = body["portfolios"]
+    _write_user(path, data)
+    return {"ok": True, "trades": len(data.get("trades", [])),
+            "watchlist": len(data.get("tickers", [])),
+            "portfolios": len(data.get("portfolios", []))}
 
 
 @app.delete("/users/{username}")

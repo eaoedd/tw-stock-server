@@ -72,6 +72,11 @@
     }
     #is-table td { padding: 6px 10px; border-bottom: 1px solid #161b22; color: #c9d1d9; text-align: center; }
     #is-table tr:hover td { background: #161b22; }
+    .is-ticker-cell { cursor: pointer; user-select: none; }
+    .is-ticker-cell:hover strong { text-decoration: underline; }
+    .is-expand-arrow { font-size: 9px; color: #484f58; margin-right: 4px; display: inline-block; transition: transform 0.15s; }
+    .is-lot-row td { padding: 3px 10px; font-size: 11px; color: #6e7681; background: #0d1117; border-bottom: 1px solid #0d1117; }
+    .is-lot-row td:first-child { padding-left: 28px; color: #484f58; }
     #is-footer {
       flex-shrink: 0; padding: 8px 16px; border-top: 1px solid #21262d;
       font-size: 11px; color: #8b949e; background: #0d1117;
@@ -365,43 +370,51 @@
 
 <!-- ── Session tab bar ── -->
 <div id="navbar">
-  <button class="nav-tab active" id="tab-dataview" onclick="switchSession('dataview')">Data View</button>
-  <button class="nav-tab" id="tab-simulation" onclick="switchSession('simulation')">Simulation</button>
-  <button class="nav-tab" id="tab-trades" onclick="switchSession('trades')">Trades</button>
-  <button class="nav-tab" id="tab-instock" onclick="switchSession('instock')">In Stock</button>
+  <button class="nav-tab active" id="tab-dataview" onclick="switchSession('dataview')" data-i18n="tab_dataview">Data View</button>
+  <button class="nav-tab" id="tab-simulation" onclick="switchSession('simulation')" data-i18n="tab_simulation">Simulation</button>
+  <button class="nav-tab" id="tab-trades" onclick="switchSession('trades')" data-i18n="tab_trades">Trades</button>
+  <button class="nav-tab" id="tab-instock" onclick="switchSession('instock')" data-i18n="tab_instock">In Stock</button>
+  <button class="secondary" id="lang-btn" onclick="toggleLang()" data-i18n="lang_btn" style="margin-left:auto;padding:4px 10px;font-size:12px">中文</button>
 </div>
 
 <!-- ── App body: watchlist + sessions side by side ── -->
 <div id="app-body">
 
   <!-- Auth modal -->
-  <div id="user-modal">
+  <div id="user-modal" onclick="if(event.target===this&&currentUser)userHideModal()">
     <div id="user-modal-box">
       <!-- Login view -->
       <div id="auth-login">
-        <h3>Sign In</h3>
-        <div class="auth-field"><input id="login-username" placeholder="Username" autocomplete="username" /></div>
-        <div class="auth-field"><input id="login-password" type="password" placeholder="Password" autocomplete="current-password" /></div>
+        <h3 data-i18n="auth_signin_title">Sign In</h3>
+        <div class="auth-field"><input id="login-username" data-i18n-ph="auth_username" placeholder="Username" autocomplete="username" /></div>
+        <div class="auth-field"><input id="login-password" type="password" data-i18n-ph="auth_password" placeholder="Password" autocomplete="current-password" /></div>
         <div id="login-error" class="auth-error"></div>
-        <button class="auth-submit" onclick="doLogin()">Sign In</button>
-        <div class="auth-switch">No account? <a onclick="showCreateView()">Create one</a></div>
+        <button class="auth-submit" onclick="doLogin()" data-i18n="auth_signin_title">Sign In</button>
+        <div class="auth-switch"><span data-i18n="auth_no_account">No account?</span> <a onclick="showCreateView()" data-i18n="auth_create_one">Create one</a></div>
       </div>
       <!-- Create account view -->
       <div id="auth-create" style="display:none">
-        <h3>Create Account</h3>
-        <div class="auth-field"><input id="create-username" placeholder="Username" autocomplete="username" maxlength="32" /></div>
-        <div class="auth-field"><input id="create-password" type="password" placeholder="Password" autocomplete="new-password" /></div>
-        <div class="auth-field"><input id="create-password2" type="password" placeholder="Confirm password" autocomplete="new-password" /></div>
+        <h3 data-i18n="auth_create_title">Create Account</h3>
+        <div class="auth-field"><input id="create-username" data-i18n-ph="auth_username" placeholder="Username" autocomplete="username" maxlength="32" /></div>
+        <div class="auth-field"><input id="create-password" type="password" data-i18n-ph="auth_password" placeholder="Password" autocomplete="new-password" /></div>
+        <div class="auth-field"><input id="create-password2" type="password" data-i18n-ph="auth_confirm_pw" placeholder="Confirm password" autocomplete="new-password" /></div>
         <div id="create-error" class="auth-error"></div>
-        <button class="auth-submit" onclick="doCreateUser()">Create Account</button>
-        <div class="auth-switch"><a onclick="showLoginView()">Back to sign in</a></div>
+        <button class="auth-submit" onclick="doCreateUser()" data-i18n="auth_create_title">Create Account</button>
+        <div class="auth-switch"><a onclick="showLoginView()" data-i18n="auth_back">Back to sign in</a></div>
       </div>
       <!-- Account settings view (when logged in) -->
       <div id="auth-settings" style="display:none">
-        <h3>Account</h3>
-        <div style="font-size:13px;color:#8b949e;margin-bottom:16px">Signed in as <strong id="settings-username" style="color:#e6edf3"></strong></div>
-        <button class="auth-submit secondary" onclick="doSwitchUser()">Switch account</button>
-        <button class="auth-danger" onclick="doDeleteUser()">Delete account</button>
+        <h3 data-i18n="auth_account_title">Account</h3>
+        <div style="font-size:13px;color:#8b949e;margin-bottom:16px"><span data-i18n="auth_signed_in_as">Signed in as</span> <strong id="settings-username" style="color:#e6edf3"></strong></div>
+        <button class="auth-submit secondary" onclick="userHideModal()" style="margin-bottom:4px" data-i18n="auth_close">✕ Close</button>
+        <button class="auth-submit secondary" onclick="doSwitchUser()" data-i18n="auth_switch">Switch account</button>
+        <div style="display:flex;gap:8px;margin-top:8px">
+          <button class="auth-submit secondary" style="flex:1" onclick="doBackup()" data-i18n="auth_backup">⬇ Backup</button>
+          <button class="auth-submit secondary" style="flex:1" onclick="document.getElementById('restore-file').click()" data-i18n="auth_restore">⬆ Restore</button>
+          <input type="file" id="restore-file" accept=".json" style="display:none" onchange="doRestore(this)" />
+        </div>
+        <div id="restore-status" style="font-size:11px;min-height:16px;margin-top:4px;color:#8b949e"></div>
+        <button class="auth-danger" onclick="doDeleteUser()" data-i18n="auth_delete">Delete account</button>
       </div>
     </div>
   </div>
@@ -409,16 +422,16 @@
   <!-- Watchlist: shared, always visible -->
   <div id="watchlist-panel">
     <div id="watchlist-header">
-      <span>Watchlist</span>
+      <span data-i18n="wl_title">Watchlist</span>
       <span id="wl-user-badge" onclick="userShowModal()" title="Switch user">—</span>
     </div>
     <div id="wl-add-row">
-      <input id="wl-add-input" placeholder="Add ticker…" />
+      <input id="wl-add-input" data-i18n-ph="wl_add_placeholder" placeholder="Add ticker…" />
       <button id="wl-add-btn" onclick="wlAdd()">+</button>
     </div>
     <div id="wl-list"></div>
     <div id="wl-refresh-row">
-      <span id="wl-last-update">Not refreshed yet</span>
+      <span id="wl-last-update" data-i18n="wl_not_refreshed">Not refreshed yet</span>
       <button class="secondary" style="padding:3px 8px;font-size:11px" onclick="wlRefresh()">↺</button>
     </div>
   </div>
@@ -426,7 +439,7 @@
   <!-- ══════════════ SESSION: Data View ══════════════ -->
   <div id="session-dataview">
     <div id="topbar">
-      <h1>TW Stock</h1>
+      <h1 data-i18n="dv_title">TW Stock</h1>
       <input id="ticker-input" placeholder="e.g. 00675L" value="00675L" />
       <select id="period-select">
         <option value="1mo">1M</option>
@@ -450,7 +463,7 @@
         <div class="ohlc-val">C<span id="i-close">—</span></div>
         <div class="ohlc-val">Vol<span id="i-vol">—</span></div>
       </div>
-      <span id="status-text">Enter a ticker symbol</span>
+      <span id="status-text" data-i18n="status_enter_ticker">Enter a ticker symbol</span>
     </div>
 
 
@@ -460,10 +473,10 @@
         <div id="volume-chart"></div>
       </div>
       <div id="table-panel">
-        <h3>Recent Data</h3>
+        <h3 data-i18n="dv_recent_data">Recent Data</h3>
         <div id="table-scroll">
           <table>
-            <thead><tr><th>Date</th><th>Close</th><th>Chg%</th><th>Volume</th></tr></thead>
+            <thead><tr><th data-i18n="th_date">Date</th><th data-i18n="th_close">Close</th><th data-i18n="th_chg_pct">Chg%</th><th data-i18n="th_volume">Volume</th></tr></thead>
             <tbody id="table-body"></tbody>
           </table>
         </div>
@@ -477,10 +490,10 @@
     <div id="bt-portfolios-wrap"></div>
 
     <div id="sim-controls-bar">
-      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptAddRow()">+ Portfolio</button>
-      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()">Reset</button>
+      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptAddRow()" data-i18n="sim_add_portfolio">+ Portfolio</button>
+      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()" data-i18n="sim_reset">Reset</button>
       <div class="divider"></div>
-      <label>Period
+      <label><span data-i18n="sim_period">Period</span>
         <select id="bt-period-select" onchange="runBacktest()">
           <option value="1mo">1M</option>
           <option value="3mo">3M</option>
@@ -491,24 +504,24 @@
           <option value="max">MAX</option>
         </select>
       </label>
-      <label>RFR (ann %)
+      <label><span data-i18n="sim_rfr">RFR (ann %)</span>
         <input type="number" id="bt-rfr" value="2.0" step="0.1" min="0" />
       </label>
-      <span style="color:#484f58;font-size:11px">format: TICKER:WEIGHT, ... (CASH earns RFR)</span>
+      <span style="color:#484f58;font-size:11px" data-i18n="sim_format_hint">format: TICKER:WEIGHT, ... (CASH earns RFR)</span>
     </div>
 
     <div id="sim-results">
       <div id="bt-chart-container"></div>
       <div id="bt-stats-wrap">
         <div id="bt-stats-table-wrap">
-          <h3>Statistics</h3>
+          <h3 data-i18n="sim_statistics">Statistics</h3>
           <table id="bt-stats-table">
-            <thead><tr><th>Portfolio</th><th>Allocation</th><th>Ann. Return</th><th>Ann. Vol</th><th>Sharpe</th><th>Max DD</th></tr></thead>
+            <thead><tr><th data-i18n="th_portfolio">Portfolio</th><th data-i18n="th_allocation">Allocation</th><th data-i18n="th_ann_return">Ann. Return</th><th data-i18n="th_ann_vol">Ann. Vol</th><th data-i18n="th_sharpe">Sharpe</th><th data-i18n="th_max_dd">Max DD</th></tr></thead>
             <tbody id="bt-stats-body"></tbody>
           </table>
         </div>
         <div id="bt-corr-wrap">
-          <h3>Correlation</h3>
+          <h3 data-i18n="sim_correlation">Correlation</h3>
           <div id="bt-corr-matrix"></div>
         </div>
       </div>
@@ -519,88 +532,88 @@
   <!-- ══════════════ SESSION: Trades ══════════════ -->
   <div id="session-trades" style="display:none">
     <div id="st-topbar">
-      <h1>Trades</h1>
+      <h1 data-i18n="st_title">Trades</h1>
       <select id="st-period" onchange="stOnPeriodChange()">
-        <option value="all">All time</option>
-        <option value="year">This year</option>
-        <option value="6m">Last 6 months</option>
-        <option value="3m">Last 3 months</option>
-        <option value="1m">This month</option>
-        <option value="custom">Custom…</option>
+        <option value="all" data-i18n="st_all_time">All time</option>
+        <option value="year" data-i18n="st_this_year">This year</option>
+        <option value="6m" data-i18n="st_last_6m">Last 6 months</option>
+        <option value="3m" data-i18n="st_last_3m">Last 3 months</option>
+        <option value="1m" data-i18n="st_this_month">This month</option>
+        <option value="custom" data-i18n="st_custom">Custom…</option>
       </select>
       <span id="st-custom-range" style="display:none; align-items:center; gap:4px;">
         <input type="date" id="st-custom-from" onchange="stRender()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
-        <span style="color:#8b949e;font-size:11px">to</span>
+        <span style="color:#8b949e;font-size:11px" data-i18n="st_to">to</span>
         <input type="date" id="st-custom-to" onchange="stRender()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
       </span>
-      <button onclick="stToggleForm()">+ New Trade</button>
+      <button onclick="stToggleForm()" data-i18n="st_new_trade">+ New Trade</button>
     </div>
     <div id="st-form-panel">
       <div class="st-field w-date">
-        <label>Date</label>
+        <label data-i18n="st_date">Date</label>
         <input type="date" id="st-date" />
       </div>
       <div class="st-field w-ticker" id="st-field-ticker">
-        <label>Ticker</label>
+        <label data-i18n="st_ticker">Ticker</label>
         <input type="text" id="st-ticker" placeholder="0050" />
       </div>
       <div class="st-field">
-        <label>Action</label>
+        <label data-i18n="st_action">Action</label>
         <select id="st-action" onchange="stOnActionChange()">
-          <option value="buy">Buy</option>
-          <option value="sell">Sell</option>
-          <option value="deposit">Deposit</option>
-          <option value="withdraw">Withdraw</option>
+          <option value="buy" data-i18n="action_buy">Buy</option>
+          <option value="sell" data-i18n="action_sell">Sell</option>
+          <option value="deposit" data-i18n="action_deposit">Deposit</option>
+          <option value="withdraw" data-i18n="action_withdraw">Withdraw</option>
         </select>
       </div>
       <div class="st-field w-num" id="st-field-shares">
-        <label id="st-shares-label">Shares</label>
+        <label id="st-shares-label" data-i18n="st_shares_lbl">Shares</label>
         <input type="number" id="st-shares" placeholder="1000" min="0" />
       </div>
       <div class="st-field w-num" id="st-field-price">
-        <label>Price</label>
+        <label data-i18n="st_price">Price</label>
         <input type="number" id="st-price" placeholder="80.5" min="0" step="0.01" />
       </div>
       <div class="st-field w-num" id="st-field-tax">
-        <label>Tax</label>
+        <label data-i18n="st_tax">Tax</label>
         <input type="number" id="st-tax" placeholder="0" min="0" step="0.01" />
       </div>
       <div class="st-field w-num" id="st-field-fee">
-        <label>Fee</label>
+        <label data-i18n="st_fee">Fee</label>
         <input type="number" id="st-fee" placeholder="0" min="0" step="0.01" />
       </div>
       <div class="st-field w-note">
-        <label>Note</label>
+        <label data-i18n="st_note">Note</label>
         <input type="text" id="st-note" placeholder="Optional note" />
       </div>
-      <button onclick="stAddTrade()" style="align-self:flex-end">Add</button>
-      <button class="secondary" onclick="stToggleForm()" style="align-self:flex-end">Cancel</button>
+      <button id="st-add-btn" onclick="stAddTrade()" style="align-self:flex-end" data-i18n="st_add">Add</button>
+      <button class="secondary" onclick="stToggleForm()" style="align-self:flex-end" data-i18n="st_cancel">Cancel</button>
     </div>
     <div id="st-body">
       <table id="st-table">
         <thead>
           <tr>
-            <th>Date</th><th>Ticker</th><th>Action</th>
-            <th class="num">Shares</th><th class="num">Price</th>
-            <th class="num">Amount</th><th class="num">Tax</th><th class="num">Fee</th>
-            <th>Note</th><th></th>
+            <th data-i18n="th_date">Date</th><th data-i18n="th_ticker">Ticker</th><th data-i18n="st_action">Action</th>
+            <th class="num" data-i18n="th_shares">Shares</th><th class="num" data-i18n="th_price">Price</th>
+            <th class="num" data-i18n="th_amount">Amount</th><th class="num" data-i18n="st_tax">Tax</th><th class="num" data-i18n="st_fee">Fee</th>
+            <th data-i18n="st_note">Note</th><th></th>
           </tr>
         </thead>
         <tbody id="st-tbody"></tbody>
       </table>
     </div>
     <div id="st-footer">
-      Trades: <span id="st-count">0</span>
-      &nbsp;·&nbsp; Total amount: <span id="st-total-amount">0</span>
-      &nbsp;·&nbsp; Total tax: <span id="st-total-tax">0</span>
-      &nbsp;·&nbsp; Total fee: <span id="st-total-fee">0</span>
+      <span data-i18n="st_footer_count">Trades:</span> <span id="st-count">0</span>
+      &nbsp;·&nbsp; <span data-i18n="st_footer_amount">Total amount:</span> <span id="st-total-amount">0</span>
+      &nbsp;·&nbsp; <span data-i18n="st_footer_tax">Total tax:</span> <span id="st-total-tax">0</span>
+      &nbsp;·&nbsp; <span data-i18n="st_footer_fee">Total fee:</span> <span id="st-total-fee">0</span>
     </div>
   </div><!-- /#session-trades -->
 
   <!-- ══════════════ SESSION: In Stock ══════════════ -->
   <div id="session-instock" style="display:none">
     <div id="is-topbar">
-      <h1>In Stock</h1>
+      <h1 data-i18n="is_title">In Stock</h1>
     </div>
     <div id="is-history"></div>
     <div id="is-body">
@@ -612,14 +625,14 @@
       <table id="is-table">
         <thead>
           <tr>
-            <th>Ticker</th>
-            <th class="num">Shares</th>
-            <th class="num">Avg Cost</th>
-            <th class="num">Current</th>
-            <th class="num">Total Cost</th>
-            <th class="num">Mkt Value</th>
-            <th class="num">Unrealized</th>
-            <th class="num">Unrealized %</th>
+            <th data-i18n="th_ticker">Ticker</th>
+            <th class="num" data-i18n="th_shares">Shares</th>
+            <th class="num" data-i18n="th_avg_cost">Avg Cost</th>
+            <th class="num" data-i18n="th_current">Current</th>
+            <th class="num" data-i18n="th_total_cost">Total Cost</th>
+            <th class="num" data-i18n="th_mkt_value">Mkt Value</th>
+            <th class="num" data-i18n="th_unrealized">Unrealized</th>
+            <th class="num" data-i18n="th_unrealized_pct">Unrealized %</th>
           </tr>
         </thead>
         <tbody id="is-tbody"></tbody>
@@ -627,17 +640,151 @@
       </div>
     </div>
     <div id="is-footer">
-      Positions: <span id="is-count">0</span>
-      &nbsp;·&nbsp; Total mkt value: <span id="is-total-value">0</span>
-      &nbsp;·&nbsp; Unrealized P&amp;L: <span id="is-total-unrealized">0</span>
+      <span data-i18n="is_footer_positions">Positions:</span> <span id="is-count">0</span>
+      &nbsp;·&nbsp; <span data-i18n="is_footer_mkt">Total mkt value:</span> <span id="is-total-value">0</span>
+      &nbsp;·&nbsp; <span data-i18n="is_footer_unr">Unrealized P&amp;L:</span> <span id="is-total-unrealized">0</span>
     </div>
   </div><!-- /#session-instock -->
 
 </div><!-- /#app-body -->
 
-<div id="loading">Loading...</div>
+<div id="loading"><span data-i18n="loading">Loading…</span></div>
 
 <script>
+// ═══════════════════════════════════════════════
+// i18n
+// ═══════════════════════════════════════════════
+const LANGS = {
+  en: {
+    // Nav
+    tab_dataview: 'Data View', tab_simulation: 'Simulation', tab_trades: 'Trades', tab_instock: 'In Stock',
+    lang_btn: '中文',
+    // Watchlist
+    wl_title: 'Watchlist', wl_add_placeholder: 'Add ticker…', wl_not_refreshed: 'Not refreshed yet',
+    wl_refresh_btn: '↺',
+    // Data View
+    dv_title: 'TW Stock', status_enter_ticker: 'Enter a ticker symbol',
+    dv_recent_data: 'Recent Data', th_date: 'Date', th_close: 'Close', th_chg_pct: 'Chg%', th_volume: 'Volume',
+    // Simulation
+    sim_add_portfolio: '+ Portfolio', sim_reset: 'Reset', sim_period: 'Period', sim_rfr: 'RFR (ann %)',
+    sim_format_hint: 'format: TICKER:WEIGHT, … (CASH earns RFR)',
+    sim_statistics: 'Statistics', sim_correlation: 'Correlation',
+    th_portfolio: 'Portfolio', th_allocation: 'Allocation', th_ann_return: 'Ann. Return',
+    th_ann_vol: 'Ann. Vol', th_sharpe: 'Sharpe', th_max_dd: 'Max DD',
+    // Trades
+    st_title: 'Trades', st_new_trade: '+ New Trade',
+    st_all_time: 'All time', st_this_year: 'This year', st_last_6m: 'Last 6 months',
+    st_last_3m: 'Last 3 months', st_this_month: 'This month', st_custom: 'Custom…', st_to: 'to',
+    st_date: 'Date', st_ticker: 'Ticker', st_action: 'Action', st_shares_lbl: 'Shares',
+    st_price: 'Price', st_tax: 'Tax', st_fee: 'Fee', st_note: 'Note',
+    st_add: 'Add', st_save: 'Save', st_cancel: 'Cancel', st_amount_twd: 'Amount (TWD)',
+    action_buy: 'Buy', action_sell: 'Sell', action_deposit: 'Deposit', action_withdraw: 'Withdraw',
+    th_shares: 'Shares', th_price: 'Price', th_amount: 'Amount', th_tax: 'Tax', th_fee: 'Fee',
+    st_footer_count: 'Trades:', st_footer_amount: 'Total amount:', st_footer_tax: 'Total tax:', st_footer_fee: 'Total fee:',
+    // In Stock
+    is_title: 'In Stock', th_ticker: 'Ticker', th_avg_cost: 'Avg Cost', th_current: 'Current',
+    th_total_cost: 'Total Cost', th_mkt_value: 'Mkt Value', th_unrealized: 'Unrealized', th_unrealized_pct: 'Unrealized %',
+    is_footer_positions: 'Positions:', is_footer_mkt: 'Total mkt value:', is_footer_unr: 'Unrealized P&L:',
+    // Auth
+    auth_signin_title: 'Sign In', auth_username: 'Username', auth_password: 'Password',
+    auth_no_account: 'No account?', auth_create_one: 'Create one',
+    auth_create_title: 'Create Account', auth_confirm_pw: 'Confirm password', auth_back: 'Back to sign in',
+    auth_account_title: 'Account', auth_signed_in_as: 'Signed in as',
+    auth_switch: 'Switch account', auth_delete: 'Delete account',
+    auth_close: '✕ Close', auth_backup: '⬇ Backup', auth_restore: '⬆ Restore',
+    // Loading
+    loading: 'Loading…',
+    // Confirms / alerts
+    confirm_delete_trade: 'Delete this trade?',
+    confirm_delete_trade_linked: 'Delete this trade and its linked TWD cash trade?',
+    confirm_remove_ticker: ticker => `Remove ${ticker} from watchlist?`,
+    confirm_delete_account: user => `Delete account "${user}" and all data? This cannot be undone.`,
+    alert_delete_account_fail: 'Could not delete account',
+    alert_add_allocation: 'Add allocations to at least one portfolio.',
+    alert_backtest_error: msg => 'Backtest error: ' + msg,
+    alert_date_amount: 'Date and amount are required.',
+    alert_ticker_price: 'Ticker and price are required.',
+  },
+  zh: {
+    // Nav
+    tab_dataview: '數據視圖', tab_simulation: '模擬', tab_trades: '交易紀錄', tab_instock: '持股',
+    lang_btn: 'EN',
+    // Watchlist
+    wl_title: '自選股', wl_add_placeholder: '輸入代號…', wl_not_refreshed: '尚未更新',
+    wl_refresh_btn: '↺',
+    // Data View
+    dv_title: '台股', status_enter_ticker: '請輸入股票代號',
+    dv_recent_data: '近期資料', th_date: '日期', th_close: '收盤', th_chg_pct: '漲跌%', th_volume: '成交量',
+    // Simulation
+    sim_add_portfolio: '+ 組合', sim_reset: '重設', sim_period: '期間', sim_rfr: '無風險利率(%)',
+    sim_format_hint: '格式: 代號:權重, … (CASH 賺取無風險利率)',
+    sim_statistics: '統計', sim_correlation: '相關性',
+    th_portfolio: '投資組合', th_allocation: '配置', th_ann_return: '年化報酬',
+    th_ann_vol: '年化波動', th_sharpe: 'Sharpe', th_max_dd: '最大回撤',
+    // Trades
+    st_title: '交易紀錄', st_new_trade: '+ 新增交易',
+    st_all_time: '全部', st_this_year: '今年', st_last_6m: '近6個月',
+    st_last_3m: '近3個月', st_this_month: '本月', st_custom: '自訂…', st_to: '至',
+    st_date: '日期', st_ticker: '代號', st_action: '類型', st_shares_lbl: '股數',
+    st_price: '價格', st_tax: '稅費', st_fee: '手續費', st_note: '備註',
+    st_add: '新增', st_save: '儲存', st_cancel: '取消', st_amount_twd: '金額 (台幣)',
+    action_buy: '買入', action_sell: '賣出', action_deposit: '存款', action_withdraw: '提款',
+    th_shares: '股數', th_price: '價格', th_amount: '金額', th_tax: '稅費', th_fee: '手續費',
+    st_footer_count: '筆數:', st_footer_amount: '總金額:', st_footer_tax: '總稅費:', st_footer_fee: '總手續費:',
+    // In Stock
+    is_title: '持股', th_ticker: '代號', th_avg_cost: '均價', th_current: '現價',
+    th_total_cost: '總成本', th_mkt_value: '市值', th_unrealized: '未實現損益', th_unrealized_pct: '未實現%',
+    is_footer_positions: '持股:', is_footer_mkt: '總市值:', is_footer_unr: '未實現損益:',
+    // Auth
+    auth_signin_title: '登入', auth_username: '帳號', auth_password: '密碼',
+    auth_no_account: '還沒有帳號？', auth_create_one: '建立帳號',
+    auth_create_title: '建立帳號', auth_confirm_pw: '確認密碼', auth_back: '返回登入',
+    auth_account_title: '帳戶', auth_signed_in_as: '已登入：',
+    auth_switch: '切換帳號', auth_delete: '刪除帳號',
+    auth_close: '✕ 關閉', auth_backup: '⬇ 備份', auth_restore: '⬆ 還原',
+    // Loading
+    loading: '載入中…',
+    // Confirms / alerts
+    confirm_delete_trade: '確定刪除此筆交易？',
+    confirm_delete_trade_linked: '確定刪除此交易及其關聯的台幣現金交易？',
+    confirm_remove_ticker: ticker => `確定從自選股移除 ${ticker}？`,
+    confirm_delete_account: user => `確定刪除帳號「${user}」及所有資料？此操作無法復原。`,
+    alert_delete_account_fail: '無法刪除帳號',
+    alert_add_allocation: '請至少為一個投資組合填入配置。',
+    alert_backtest_error: msg => '回測錯誤：' + msg,
+    alert_date_amount: '請填寫日期和金額。',
+    alert_ticker_price: '請填寫代號和價格。',
+  },
+};
+
+let currentLang = localStorage.getItem('lang') || 'en';
+
+function t(key, arg) {
+  const val = LANGS[currentLang][key] ?? LANGS.en[key] ?? key;
+  return typeof val === 'function' ? val(arg) : val;
+}
+
+function applyLang() {
+  document.querySelectorAll('[data-i18n]').forEach(el => {
+    el.textContent = t(el.dataset.i18n);
+  });
+  document.querySelectorAll('[data-i18n-ph]').forEach(el => {
+    el.placeholder = t(el.dataset.i18nPh);
+  });
+  document.querySelectorAll('[data-i18n-val]').forEach(el => {
+    el.value = t(el.dataset.i18nVal);
+  });
+  // Re-render dynamic content if loaded
+  if (typeof stRender === 'function' && stTrades.length >= 0) stRender();
+  if (typeof isRenderTable === 'function') isRenderTable();
+}
+
+function toggleLang() {
+  currentLang = currentLang === 'en' ? 'zh' : 'en';
+  localStorage.setItem('lang', currentLang);
+  applyLang();
+}
+
 // ═══════════════════════════════════════════════
 // Session switcher
 // ═══════════════════════════════════════════════
@@ -952,11 +1099,56 @@ function doSwitchUser() {
   document.getElementById('user-modal').classList.add('show');
 }
 
+async function doBackup() {
+  const res = await authFetch(`/users/${encodeURIComponent(currentUser)}/export`);
+  if (!res.ok) return;
+  const blob = await res.blob();
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `${currentUser}_backup.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+async function doRestore(input) {
+  const file = input.files[0];
+  if (!file) return;
+  input.value = '';
+  const status = document.getElementById('restore-status');
+  try {
+    const text = await file.text();
+    const payload = JSON.parse(text);
+    if (!confirm(`Restore from "${file.name}"? This will overwrite your current trades, watchlist and portfolios.`)) return;
+    const res = await authFetch(`/users/${encodeURIComponent(currentUser)}/import`, {
+      method: 'POST',
+      body: JSON.stringify(payload),
+    });
+    if (!res.ok) { status.textContent = 'Restore failed.'; status.style.color = '#f85149'; return; }
+    const info = await res.json();
+    status.textContent = `Restored: ${info.trades} trades, ${info.watchlist} watchlist, ${info.portfolios} portfolios`;
+    status.style.color = '#3fb950';
+    // Reload all data
+    stTrades = [];
+    await stLoad();
+    wlData = payload.watchlist || [];
+    wlSave(); wlRender(); wlRefresh();
+    if (payload.portfolios) {
+      btPortfolios = payload.portfolios;
+      ptRenderRows();
+    }
+    isRefresh();
+  } catch (e) {
+    status.textContent = 'Invalid file.';
+    status.style.color = '#f85149';
+  }
+}
+
 async function doDeleteUser() {
-  if (!confirm(`Delete account "${currentUser}" and all data? This cannot be undone.`)) return;
+  if (!confirm(t('confirm_delete_account', currentUser))) return;
   try {
     const res = await authFetch(`/users/${encodeURIComponent(currentUser)}`, { method: 'DELETE' });
-    if (!res.ok) { alert('Could not delete account'); return; }
+    if (!res.ok) { alert(t('alert_delete_account_fail')); return; }
     authToken   = null;
     currentUser = null;
     localStorage.removeItem(TOKEN_KEY);
@@ -1011,7 +1203,7 @@ function wlAdd() {
 }
 
 function wlRemove(ticker) {
-  if (!confirm(`Remove ${ticker} from watchlist?`)) return;
+  if (!confirm(t('confirm_remove_ticker', ticker))) return;
   wlData = wlData.filter(t => t !== ticker);
   wlSave();
   wlRender();
@@ -1417,7 +1609,7 @@ async function runBacktest() {
     .map((p, i) => ({ ...p, idx: i, rows: parseAlloc(p.alloc) }))
     .filter(p => p.rows.length > 0);
 
-  if (validPortfolios.length === 0) { alert('Add allocations to at least one portfolio.'); return; }
+  if (validPortfolios.length === 0) { alert(t('alert_add_allocation')); return; }
 
   const period = document.getElementById('bt-period-select').value;
   const rfr    = parseFloat(document.getElementById('bt-rfr').value) / 100;
@@ -1520,7 +1712,7 @@ async function runBacktest() {
     btRenderStatsMulti(portfolioResults);
     btRenderCorrMulti(portfolioResults);
   } catch (e) {
-    alert('Backtest error: ' + e.message);
+    alert(t('alert_backtest_error', e.message));
   } finally {
     document.getElementById('loading').classList.remove('show');
   }
@@ -1530,6 +1722,7 @@ async function runBacktest() {
 // Trades
 // ═══════════════════════════════════════════════
 let stTrades = [];
+let stEditingId = null;
 
 function stToggleForm() {
   const panel = document.getElementById('st-form-panel');
@@ -1539,7 +1732,36 @@ function stToggleForm() {
     const today = new Date().toISOString().slice(0, 10);
     document.getElementById('st-date').value = today;
     document.getElementById('st-ticker').focus();
+  } else {
+    stCancelEdit();
   }
+}
+
+function stCancelEdit() {
+  stEditingId = null;
+  document.getElementById('st-add-btn').textContent = t('st_add');
+  ['st-ticker','st-shares','st-price','st-tax','st-fee','st-note'].forEach(id =>
+    document.getElementById(id).value = '');
+}
+
+function stEditTrade(id) {
+  const tr = stTrades.find(r => r.id === id);
+  if (!tr) return;
+  stEditingId = id;
+  const isCash = tr.action === 'deposit' || tr.action === 'withdraw';
+  document.getElementById('st-date').value   = tr.date;
+  document.getElementById('st-action').value = tr.action;
+  document.getElementById('st-ticker').value = isCash ? '' : tr.ticker;
+  document.getElementById('st-shares').value = tr.shares;
+  document.getElementById('st-price').value  = isCash ? '' : tr.price;
+  document.getElementById('st-tax').value    = isCash ? '' : tr.tax;
+  document.getElementById('st-fee').value    = isCash ? '' : (tr.fee || 0);
+  document.getElementById('st-note').value   = tr.note || '';
+  stOnActionChange();
+  document.getElementById('st-add-btn').textContent = t('st_save');
+  const panel = document.getElementById('st-form-panel');
+  if (!panel.classList.contains('show')) panel.classList.add('show');
+  document.getElementById(isCash ? 'st-shares' : 'st-ticker').focus();
 }
 
 async function stLoad() {
@@ -1559,13 +1781,15 @@ function stOnActionChange() {
   document.getElementById('st-field-price').style.display  = isCash ? 'none' : '';
   document.getElementById('st-field-tax').style.display    = isCash ? 'none' : '';
   document.getElementById('st-field-fee').style.display    = isCash ? 'none' : '';
-  document.getElementById('st-shares-label').textContent   = isCash ? 'Amount (TWD)' : 'Shares';
+  document.getElementById('st-shares-label').textContent   = isCash ? t('st_amount_twd') : t('st_shares_lbl');
   document.getElementById('st-shares').placeholder         = isCash ? '1000000' : '1000';
   if (isCash) document.getElementById('st-shares').focus();
   else        document.getElementById('st-ticker').focus();
 }
 
 async function stAddTrade() {
+  if (stEditingId) { await stUpdateTrade(); return; }
+
   const date   = document.getElementById('st-date').value;
   const action = document.getElementById('st-action').value;
   const isCash = action === 'deposit' || action === 'withdraw';
@@ -1577,11 +1801,11 @@ async function stAddTrade() {
   const note   = document.getElementById('st-note').value.trim();
 
   if (!date || shares <= 0) {
-    alert('Date and amount are required.');
+    alert(t('alert_date_amount'));
     return;
   }
   if (!isCash && (!ticker || price <= 0)) {
-    alert('Ticker and price are required.');
+    alert(t('alert_ticker_price'));
     return;
   }
   try {
@@ -1593,7 +1817,7 @@ async function stAddTrade() {
     const data = await res.json();
     stTrades.push(data.trade);
 
-    // Auto-create balancing cash trade
+    // Auto-create balancing cash trade linked to the stock trade
     if (action === 'buy' || action === 'sell') {
       const cashAmount = action === 'buy'
         ? shares * price + tax + fee
@@ -1601,7 +1825,7 @@ async function stAddTrade() {
       const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
       const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}`, {
         method: 'POST',
-        body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})` }),
+        body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: data.trade.id }),
       });
       if (cashRes.ok) stTrades.push((await cashRes.json()).trade);
     }
@@ -1617,12 +1841,67 @@ async function stAddTrade() {
   } catch (_) {}
 }
 
+async function stUpdateTrade() {
+  const id     = stEditingId;
+  const date   = document.getElementById('st-date').value;
+  const action = document.getElementById('st-action').value;
+  const isCash = action === 'deposit' || action === 'withdraw';
+  const ticker = isCash ? 'TWD' : document.getElementById('st-ticker').value.trim().toUpperCase();
+  const shares = parseFloat(document.getElementById('st-shares').value) || 0;
+  const price  = isCash ? 1 : (parseFloat(document.getElementById('st-price').value) || 0);
+  const tax    = isCash ? 0 : (parseFloat(document.getElementById('st-tax').value)   || 0);
+  const fee    = isCash ? 0 : (parseFloat(document.getElementById('st-fee').value)   || 0);
+  const note   = document.getElementById('st-note').value.trim();
+
+  if (!date || shares <= 0) { alert(t('alert_date_amount')); return; }
+  if (!isCash && (!ticker || price <= 0)) { alert(t('alert_ticker_price')); return; }
+
+  try {
+    const res = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify({ date, ticker, action, shares, price, tax, fee, note }),
+    });
+    if (!res.ok) return;
+    const updated = (await res.json()).trade;
+    stTrades = stTrades.map(t => t.id === id ? updated : t);
+
+    // Cascade update linked cash trade if this is a buy/sell
+    if (action === 'buy' || action === 'sell') {
+      const cashTrade = stTrades.find(t => t.linkedId === id);
+      if (cashTrade) {
+        const cashAmount = action === 'buy'
+          ? shares * price + tax + fee
+          : shares * price - tax - fee;
+        const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
+        const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${cashTrade.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: id }),
+        });
+        if (cashRes.ok) {
+          const updatedCash = (await cashRes.json()).trade;
+          stTrades = stTrades.map(t => t.id === cashTrade.id ? updatedCash : t);
+        }
+      }
+    }
+
+    stCancelEdit();
+    stTrades.sort((a, b) => b.date.localeCompare(a.date));
+    stRender();
+    isRefresh();
+  } catch (_) {}
+}
+
 async function stDeleteTrade(id) {
-  if (!confirm('Delete this trade?')) return;
+  const linked = stTrades.find(t => t.linkedId === id);
+  const msg = linked
+    ? t('confirm_delete_trade_linked')
+    : t('confirm_delete_trade');
+  if (!confirm(msg)) return;
   try {
     const res = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${id}`, { method: 'DELETE' });
     if (!res.ok) return;
-    stTrades = stTrades.filter(t => t.id !== id);
+    const deleted = new Set((await res.json()).deleted || [id]);
+    stTrades = stTrades.filter(t => !deleted.has(t.id));
     stRender();
     isRefresh();
   } catch (_) {}
@@ -1663,20 +1942,25 @@ function stRender() {
   const fmt = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const filtered = stFilteredTrades();
   const sorted = [...filtered].sort((a, b) => b.date.localeCompare(a.date));
-  document.getElementById('st-tbody').innerHTML = sorted.map(t => {
-    const amount = t.shares * t.price;
+  const actionLabel = { buy: t('action_buy'), sell: t('action_sell'), deposit: t('action_deposit'), withdraw: t('action_withdraw') };
+  document.getElementById('st-tbody').innerHTML = sorted.map(tr => {
+    const amount = tr.shares * tr.price;
     return `<tr>
-      <td>${t.date}</td>
-      <td><strong>${t.ticker}</strong></td>
-      <td class="st-${t.action}">${{buy:'Buy',sell:'Sell',deposit:'Deposit',withdraw:'Withdraw'}[t.action] ?? t.action}</td>
-      <td class="num">${t.shares.toLocaleString()}</td>
-      <td class="num">${fmt(t.price)}</td>
+      <td>${tr.date}</td>
+      <td><strong>${tr.ticker}</strong></td>
+      <td class="st-${tr.action}">${actionLabel[tr.action] ?? tr.action}</td>
+      <td class="num">${tr.shares.toLocaleString()}</td>
+      <td class="num">${fmt(tr.price)}</td>
       <td class="num">${fmt(amount)}</td>
-      <td class="num">${fmt(t.tax)}</td>
-      <td class="num">${fmt(t.fee || 0)}</td>
-      <td style="color:#8b949e">${t.note || ''}</td>
-      <td><button class="icon-btn" style="color:#484f58"
-        onclick="stDeleteTrade('${t.id}')">✕</button></td>
+      <td class="num">${fmt(tr.tax)}</td>
+      <td class="num">${fmt(tr.fee || 0)}</td>
+      <td style="color:#8b949e">${tr.note || ''}</td>
+      <td style="white-space:nowrap">
+        <button class="icon-btn" style="color:#484f58;margin-right:4px"
+          onclick="stEditTrade('${tr.id}')">✎</button>
+        <button class="icon-btn" style="color:#484f58"
+          onclick="stDeleteTrade('${tr.id}')">✕</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -1693,7 +1977,14 @@ function stRender() {
 // In Stock
 // ═══════════════════════════════════════════════
 
-let isPrices = {};  // ticker → latest close price
+let isPrices   = {};   // ticker → latest close price
+let isExpanded = new Set();  // tickers with expanded lot rows
+
+function isToggleExpand(ticker) {
+  if (isExpanded.has(ticker)) isExpanded.delete(ticker);
+  else isExpanded.add(ticker);
+  isRender();
+}
 
 // Compute positions from stTrades using average cost method.
 // avg cost per share includes tax and fee proportionally.
@@ -1711,7 +2002,7 @@ function isComputePositions() {
     } else if (t.action === 'buy') {
       if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
       const costPerShare = (t.shares * t.price + (t.tax || 0) + (t.fee || 0)) / t.shares;
-      lots[t.ticker].push({ shares: t.shares, costPerShare });
+      lots[t.ticker].push({ shares: t.shares, costPerShare, date: t.date });
     } else if (t.action === 'sell') {
       if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
       const proceeds = t.shares * t.price - (t.tax || 0) - (t.fee || 0);
@@ -1736,7 +2027,7 @@ function isComputePositions() {
   for (const [ticker, tickerLots] of Object.entries(lots)) {
     const shares    = tickerLots.reduce((s, l) => s + l.shares, 0);
     const totalCost = tickerLots.reduce((s, l) => s + l.shares * l.costPerShare, 0);
-    positions[ticker] = { shares, totalCost, realizedPnL: realized[ticker] || 0 };
+    positions[ticker] = { shares, totalCost, realizedPnL: realized[ticker] || 0, lots: tickerLots.filter(l => l.shares > 0.0001) };
   }
   return positions;
 }
@@ -1775,8 +2066,25 @@ function isRender() {
     const unrealPctCell = unrealPct != null
       ? `<span ${clsPnl(unrealPct)}>${fmtPnl(unrealPct)}%</span>` : '<span style="color:#484f58">—</span>';
 
+    const hasLots   = !isTWD && p.lots && p.lots.length > 0;
+    const expanded  = isExpanded.has(ticker);
+    const arrow     = hasLots ? `<span class="is-expand-arrow" style="transform:rotate(${expanded ? 90 : 0}deg)">▶</span>` : '<span class="is-expand-arrow"></span>';
+    const tickerClick = hasLots ? `onclick="isToggleExpand('${ticker}')"` : '';
+
+    let lotRows = '';
+    if (hasLots && expanded) {
+      lotRows = p.lots.map(l => `<tr class="is-lot-row">
+        <td>${l.date}</td>
+        <td>${l.shares.toLocaleString()}</td>
+        <td>${fmt(l.costPerShare)}</td>
+        <td></td>
+        <td>${fmt(l.shares * l.costPerShare)}</td>
+        <td></td><td></td><td></td>
+      </tr>`).join('');
+    }
+
     return `<tr>
-      <td><strong>${ticker}</strong></td>
+      <td class="is-ticker-cell" ${tickerClick}>${arrow}<strong>${ticker}</strong></td>
       <td>${sharesCell}</td>
       <td>${avgCostCell}</td>
       <td>${currentCell}</td>
@@ -1784,7 +2092,7 @@ function isRender() {
       <td>${valueCell}</td>
       <td>${unrealCell}</td>
       <td>${unrealPctCell}</td>
-    </tr>`;
+    </tr>${lotRows}`;
   }).join('');
 
   const held = rows.filter(([, p]) => p.shares > 0.0001).length;
@@ -1977,6 +2285,7 @@ async function isRefresh() {
 // ═══════════════════════════════════════════════
 // Boot
 // ═══════════════════════════════════════════════
+applyLang();
 ptInitRows();
 wlStartAutoRefresh();
 loadData();
