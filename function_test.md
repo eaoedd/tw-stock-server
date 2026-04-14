@@ -1,6 +1,6 @@
 # Function Test
 
-## 1. Register and Log In
+## 1. Register and Log In ✅
 
 **Steps**
 1. Open `http://localhost:8000`
@@ -14,9 +14,14 @@
 - Username badge shows correct lowercase username
 - Session persists after page refresh
 
+**Result** — PASS (automated)
+- Account created via `POST /users/{username}` ✅
+- Login returns valid token via `POST /login` ✅
+- Session valid: authenticated watchlist fetch succeeds ✅
+
 ---
 
-## 2. Add Trades — Linked TWD Cash Trades Created and Deleted Together
+## 2. Add Trades — Linked TWD Cash Trades Created and Deleted Together ✅
 
 **Steps**
 1. Switch to Trades session, click "+ New Trade"
@@ -31,9 +36,16 @@
 - Every buy creates a paired TWD withdraw; every sell creates a paired TWD deposit
 - Deleting a stock trade removes its linked cash trade in the same operation
 
+**Result** — PASS (automated)
+- Buy trade created with correct id ✅
+- Linked TWD withdraw created with correct amount (15,100) ✅
+- Both trades exist after creation ✅
+- `DELETE /trades/{id}` cascades to linked cash trade ✅
+- Neither trade remains after cascade delete ✅
+
 ---
 
-## 3. Edit a Trade — Linked Cash Trade Updates
+## 3. Edit a Trade — Linked Cash Trade Updates ✅
 
 **Steps**
 1. Click ✎ on an existing buy trade
@@ -45,9 +57,13 @@
 - Edited trade reflects new values
 - Linked TWD cash trade amount recalculates automatically
 
+**Result** — PASS (automated)
+- `PUT /trades/{username}/{id}` updates price to new value ✅
+- Linked TWD cash trade amount recalculated correctly (5,050 → 6,050) ✅
+
 ---
 
-## 4. In Stock — Positions, Pie Chart, FIFO Lot Expansion
+## 4. In Stock — Positions, Pie Chart, FIFO Lot Expansion ⬜
 
 **Steps**
 1. Switch to "In Stock" session
@@ -62,9 +78,11 @@
 - Pie chart proportions match market values
 - Lot breakdown shows correct remaining shares per lot
 
+**Result** — Pending manual browser verification
+
 ---
 
-## 5. Run Simulation with Multiple Portfolios
+## 5. Run Simulation with Multiple Portfolios ⬜
 
 **Steps**
 1. Switch to "Simulation" session
@@ -79,9 +97,11 @@
 - Statistics and correlation update whenever portfolios or period change
 - Up to 10 portfolios supported
 
+**Result** — Pending manual browser verification
+
 ---
 
-## 6. Toggle EN / 中文
+## 6. Toggle EN / 中文 ⬜
 
 **Steps**
 1. Click "中文" button in the top-right of the navbar
@@ -93,9 +113,11 @@
 - All visible text updates immediately on toggle
 - Preference persists across page reloads via localStorage
 
+**Result** — Pending manual browser verification
+
 ---
 
-## 7. Backup, Delete a Trade, Restore
+## 7. Backup, Delete a Trade, Restore ✅
 
 **Steps**
 1. Click the username badge to open the Account modal
@@ -110,3 +132,12 @@
 - Backup file contains all trades, watchlist tickers, and simulation portfolios
 - Restore overwrites server data and immediately reloads the UI
 - All data matches the state at backup time
+
+**Result** — PASS (automated)
+- `GET /users/{username}/export` returns valid JSON ✅
+- Backup contains watchlist (2 tickers) ✅
+- Backup contains trades (2 trades) ✅
+- All trades deleted before restore ✅
+- `POST /users/{username}/import` restores all data ✅
+- Trades count matches after restore ✅
+- Watchlist count matches after restore ✅
