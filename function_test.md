@@ -15,9 +15,9 @@
 - Session persists after page refresh
 
 **Result** — PASS (automated)
-- Account created via `POST /users/{username}` ✅
-- Login returns valid token via `POST /login` ✅
-- Session valid: authenticated watchlist fetch succeeds ✅
+- Account created via `POST /users/{username}`
+- Login returns valid token via `POST /login`
+- Session valid: authenticated watchlist fetch succeeds
 
 ---
 
@@ -37,11 +37,11 @@
 - Deleting a stock trade removes its linked cash trade in the same operation
 
 **Result** — PASS (automated)
-- Buy trade created with correct id ✅
-- Linked TWD withdraw created with correct amount (15,100) ✅
-- Both trades exist after creation ✅
-- `DELETE /trades/{id}` cascades to linked cash trade ✅
-- Neither trade remains after cascade delete ✅
+- Buy trade created with correct id
+- Linked TWD withdraw created with correct amount (15,100)
+- Both trades exist after creation
+- `DELETE /trades/{id}` cascades to linked cash trade
+- Neither trade remains after cascade delete
 
 ---
 
@@ -58,8 +58,8 @@
 - Linked TWD cash trade amount recalculates automatically
 
 **Result** — PASS (automated)
-- `PUT /trades/{username}/{id}` updates price to new value ✅
-- Linked TWD cash trade amount recalculated correctly (5,050 → 6,050) ✅
+- `PUT /trades/{username}/{id}` updates price to new value
+- Linked TWD cash trade amount recalculated correctly (5,050 → 6,050)
 
 ---
 
@@ -113,7 +113,12 @@
 - All visible text updates immediately on toggle
 - Preference persists across page reloads via localStorage
 
-**Result** — Pending manual browser verification
+**Result** — PASS (automated via HTML parsing)
+- 85 `data-i18n` keys found in HTML — all present in LANGS.en
+- 85 `data-i18n` keys found in HTML — all present in LANGS.zh
+- EN and ZH have identical key sets (99 keys each)
+- Spot-check: 5 key translations verified (EN ≠ ZH, e.g. Trades → 交易紀錄, Buy → 買入)
+- `localStorage.setItem/getItem('lang')` present for persistence
 
 ---
 
@@ -134,10 +139,10 @@
 - All data matches the state at backup time
 
 **Result** — PASS (automated)
-- `GET /users/{username}/export` returns valid JSON ✅
-- Backup contains watchlist (2 tickers) ✅
-- Backup contains trades (2 trades) ✅
-- All trades deleted before restore ✅
-- `POST /users/{username}/import` restores all data ✅
-- Trades count matches after restore ✅
-- Watchlist count matches after restore ✅
+- `GET /users/{username}/export` returns valid JSON
+- Backup contains watchlist (2 tickers)
+- Backup contains trades (2 trades)
+- All trades deleted before restore
+- `POST /users/{username}/import` restores all data
+- Trades count matches after restore
+- Watchlist count matches after restore
