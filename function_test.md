@@ -1,6 +1,6 @@
 # Function Test
 
-## 1. Register and Log In ✅
+## 1. Register and Log In
 
 **Steps**
 1. Open `http://localhost:8000`
@@ -21,7 +21,7 @@
 
 ---
 
-## 2. Add Trades — Linked TWD Cash Trades Created and Deleted Together ✅
+## 2. Add Trades — Linked TWD Cash Trades Created and Deleted Together
 
 **Steps**
 1. Switch to Trades session, click "+ New Trade"
@@ -45,7 +45,7 @@
 
 ---
 
-## 3. Edit a Trade — Linked Cash Trade Updates ✅
+## 3. Edit a Trade — Linked Cash Trade Updates
 
 **Steps**
 1. Click ✎ on an existing buy trade
@@ -63,7 +63,7 @@
 
 ---
 
-## 4. In Stock — Positions, Pie Chart, FIFO Lot Expansion ⬜
+## 4. In Stock — Positions, Pie Chart, FIFO Lot Expansion
 
 **Steps**
 1. Switch to "In Stock" session
@@ -82,7 +82,7 @@
 
 ---
 
-## 5. Run Simulation with Multiple Portfolios ⬜
+## 5. Run Simulation with Multiple Portfolios
 
 **Steps**
 1. Switch to "Simulation" session
@@ -101,7 +101,7 @@
 
 ---
 
-## 6. Toggle EN / 中文 ⬜
+## 6. Toggle EN / 中文
 
 **Steps**
 1. Click "中文" button in the top-right of the navbar
@@ -117,7 +117,7 @@
 
 ---
 
-## 7. Backup, Delete a Trade, Restore ✅
+## 7. Backup, Delete a Trade, Restore
 
 **Steps**
 1. Click the username badge to open the Account modal
