@@ -494,7 +494,7 @@
       <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()" data-i18n="sim_reset">Reset</button>
       <div class="divider"></div>
       <label><span data-i18n="sim_period">Period</span>
-        <select id="bt-period-select" onchange="runBacktest()">
+        <select id="bt-period-select" onchange="btOnPeriodChange()">
           <option value="1mo">1M</option>
           <option value="3mo">3M</option>
           <option value="6mo">6M</option>
@@ -502,8 +502,14 @@
           <option value="2y">2Y</option>
           <option value="5y">5Y</option>
           <option value="max">MAX</option>
+          <option value="custom" data-i18n="sim_custom">Custom…</option>
         </select>
       </label>
+      <span id="bt-custom-range" style="display:none; align-items:center; gap:4px;">
+        <input type="date" id="bt-custom-from" onchange="runBacktest()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+        <span style="color:#8b949e;font-size:11px" data-i18n="st_to">to</span>
+        <input type="date" id="bt-custom-to" onchange="runBacktest()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+      </span>
       <label><span data-i18n="sim_rfr">RFR (ann %)</span>
         <input type="number" id="bt-rfr" value="2.0" step="0.1" min="0" />
       </label>
@@ -666,7 +672,7 @@ const LANGS = {
     dv_title: 'TW Stock', status_enter_ticker: 'Enter a ticker symbol',
     dv_recent_data: 'Recent Data', th_date: 'Date', th_close: 'Close', th_chg_pct: 'Chg%', th_volume: 'Volume',
     // Simulation
-    sim_add_portfolio: '+ Portfolio', sim_reset: 'Reset', sim_period: 'Period', sim_rfr: 'RFR (ann %)',
+    sim_add_portfolio: '+ Portfolio', sim_reset: 'Reset', sim_period: 'Period', sim_rfr: 'RFR (ann %)', sim_custom: 'Custom…',
     sim_format_hint: 'format: TICKER:WEIGHT, … (CASH earns RFR)',
     sim_statistics: 'Statistics', sim_correlation: 'Correlation',
     th_portfolio: 'Portfolio', th_allocation: 'Allocation', th_ann_return: 'Ann. Return',
@@ -716,7 +722,7 @@ const LANGS = {
     dv_title: '台股', status_enter_ticker: '請輸入股票代號',
     dv_recent_data: '近期資料', th_date: '日期', th_close: '收盤', th_chg_pct: '漲跌%', th_volume: '成交量',
     // Simulation
-    sim_add_portfolio: '+ 組合', sim_reset: '重設', sim_period: '期間', sim_rfr: '無風險利率(%)',
+    sim_add_portfolio: '+ 組合', sim_reset: '重設', sim_period: '期間', sim_rfr: '無風險利率(%)', sim_custom: '自訂…',
     sim_format_hint: '格式: 代號:權重, … (CASH 賺取無風險利率)',
     sim_statistics: '統計', sim_correlation: '相關性',
     th_portfolio: '投資組合', th_allocation: '配置', th_ann_return: '年化報酬',
@@ -906,7 +912,7 @@ async function loadData(forceRefresh = false) {
   document.getElementById('loading').classList.add('show');
   document.getElementById('status-text').textContent = 'Fetching...';
   try {
-    const res = await fetch(`/history/${ticker}?period=${period}&refresh=${forceRefresh}`);
+    const res = await fetchWithTimeout(`/history/${ticker}?period=${period}&refresh=${forceRefresh}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       document.getElementById('status-text').textContent = 'Error: ' + (err.detail || res.statusText);
@@ -1353,6 +1359,13 @@ function btScheduleRun() {
   _btRunTimer = setTimeout(() => runBacktest(), 800);
 }
 
+function btOnPeriodChange() {
+  const isCustom = document.getElementById('bt-period-select').value === 'custom';
+  document.getElementById('bt-custom-range').style.display = isCustom ? 'flex' : 'none';
+  if (!isCustom) runBacktest();
+}
+
+
 // ── Portfolio server sync ────────────────────────────────────────────────────
 let _portfolioSaveTimer = null;
 function portfoliosSave() {
@@ -1604,6 +1617,12 @@ function generateCashRecords(dates, rfrAnn) {
   });
 }
 
+function fetchWithTimeout(url, ms = 15000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function runBacktest() {
   const validPortfolios = btPortfolios
     .map((p, i) => ({ ...p, idx: i, rows: parseAlloc(p.alloc) }))
@@ -1611,7 +1630,12 @@ async function runBacktest() {
 
   if (validPortfolios.length === 0) { alert(t('alert_add_allocation')); return; }
 
-  const period = document.getElementById('bt-period-select').value;
+  const period   = document.getElementById('bt-period-select').value;
+  const isCustom = period === 'custom';
+  const customFrom = isCustom ? document.getElementById('bt-custom-from').value : '';
+  const customTo   = isCustom ? document.getElementById('bt-custom-to').value   : '';
+  if (isCustom && (!customFrom || !customTo)) return;  // wait until both dates filled
+  const fetchPeriod = isCustom ? 'max' : period;
   const rfr    = parseFloat(document.getElementById('bt-rfr').value) / 100;
 
   document.getElementById('loading').classList.add('show');
@@ -1621,12 +1645,16 @@ async function runBacktest() {
       validPortfolios.flatMap(p => p.rows.map(r => r.ticker).filter(t => t !== 'CASH'))
     )];
     const fetchResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=${period}&refresh=true`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=${fetchPeriod}`).then(r => r.json()))
     );
     const recordsMap = {};
     allTickers.forEach((t, i) => {
-      if (fetchResults[i].status === 'fulfilled')
-        recordsMap[t] = fetchResults[i].value.records;
+      if (fetchResults[i].status === 'fulfilled') {
+        let records = fetchResults[i].value.records;
+        if (isCustom && records)
+          records = records.filter(r => r.date >= customFrom && r.date <= customTo);
+        recordsMap[t] = records;
+      }
     });
 
     // Detect tickers with truly identical price series (compare first 5 daily returns)
@@ -2242,7 +2270,7 @@ async function isRefresh() {
   try {
     // Fetch full history (cached) for the chart
     const histResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=max`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=max`).then(r => r.json()))
     );
     const allPriceData = {};
     histResults.forEach((r, i) => {
@@ -2254,7 +2282,7 @@ async function isRefresh() {
 
     // Fetch fresh 5d data to get today's price (force refresh)
     const freshResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=5d&refresh=true`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=5d&refresh=true`).then(r => r.json()))
     );
     freshResults.forEach((r, i) => {
       if (r.status === 'fulfilled' && r.value.records?.length) {
