@@ -79,14 +79,14 @@
 - Lot breakdown shows correct remaining shares per lot
 
 **Result** — PASS (FIFO computation via Python port; pie chart and lot-row DOM expansion require manual browser verification)
-- Buy creates position with correct shares and avg cost (fee included) ✅
-- Partial sell: correct remaining shares (70), 2 FIFO lots remain (20 + 50 shares), realized P&L correct ✅
-- Full sell: 0 shares remain, no lots, realized P&L = 1,000 ✅
-- Multiple tickers: independent positions coexist ✅
-- TWD balance: deposit + withdraw = correct cash balance ✅
-- Linked auto-withdraw reduces TWD correctly alongside buy trade ✅
-- FIFO lots preserve purchase dates ✅
-- Avg cost per share includes tax and fee ✅
+- Buy creates position with correct shares and avg cost (fee included)
+- Partial sell: correct remaining shares (70), 2 FIFO lots remain (20 + 50 shares), realized P&L correct
+- Full sell: 0 shares remain, no lots, realized P&L = 1,000
+- Multiple tickers: independent positions coexist
+- TWD balance: deposit + withdraw = correct cash balance
+- Linked auto-withdraw reduces TWD correctly alongside buy trade
+- FIFO lots preserve purchase dates
+- Avg cost per share includes tax and fee
 
 ---
 
