@@ -530,12 +530,18 @@ def get_history(
     """Return OHLCV history for a Taiwan stock/ETF ticker."""
     cache_key = f"{ticker.upper()}_{period}"
 
-    # Always serve fresh cache (within TTL) — no need to hit yfinance
+    # Always serve fresh cache (within TTL) — no need to hit yfinance, even if refresh=true
     cached = load_cache(cache_key)
-    if cached and not refresh:
+    if cached:
         return {**cached, "source": "cache"}
 
-    # Cache is stale or refresh requested — try yfinance
+    # No fresh cache — serve stale if refresh not requested, otherwise try yfinance
+    if not refresh:
+        stale = load_cache(cache_key, ignore_ttl=True)
+        if stale:
+            return {**stale, "source": "cache_stale"}
+
+    # refresh=true or no cache at all — try yfinance
     try:
         records = fetch_history(ticker, period)
     except HTTPException:
@@ -552,7 +558,7 @@ def get_history(
             "source": "fetched",
         }
 
-    # yfinance failed — fall back to any cached data (even stale)
+    # yfinance failed — fall back to stale cache as last resort
     stale = load_cache(cache_key, ignore_ttl=True)
     if stale:
         return {**stale, "source": "cache_stale"}
