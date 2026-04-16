@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TW Stock Chart</title>
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -375,6 +376,7 @@
   <button class="nav-tab" id="tab-trades" onclick="switchSession('trades')" data-i18n="tab_trades">Trades</button>
   <button class="nav-tab" id="tab-instock" onclick="switchSession('instock')" data-i18n="tab_instock">In Stock</button>
   <button class="secondary" id="lang-btn" onclick="toggleLang()" data-i18n="lang_btn" style="margin-left:auto;padding:4px 10px;font-size:12px">中文</button>
+  <button class="secondary" id="screenshot-btn" onclick="downloadScreenshot()" title="Save PNG" style="padding:4px 10px;font-size:12px">📷</button>
 </div>
 
 <!-- ── App body: watchlist + sessions side by side ── -->
@@ -665,7 +667,7 @@ const LANGS = {
   en: {
     // Nav
     tab_dataview: 'Data View', tab_simulation: 'Simulation', tab_trades: 'Trades', tab_instock: 'In Stock',
-    lang_btn: '中文',
+    lang_btn: '中文', screenshot_btn: '📷',
     // Watchlist
     wl_title: 'Watchlist', wl_add_placeholder: 'Add ticker…', wl_not_refreshed: 'Not refreshed yet',
     wl_refresh_btn: '↺',
@@ -717,7 +719,7 @@ const LANGS = {
   zh: {
     // Nav
     tab_dataview: '數據視圖', tab_simulation: '模擬', tab_trades: '交易紀錄', tab_instock: '持股',
-    lang_btn: 'EN',
+    lang_btn: 'EN', screenshot_btn: '📷',
     // Watchlist
     wl_title: '自選股', wl_add_placeholder: '輸入代號…', wl_not_refreshed: '尚未更新',
     wl_refresh_btn: '↺',
@@ -794,6 +796,38 @@ function toggleLang() {
   currentLang = currentLang === 'en' ? 'zh' : 'en';
   localStorage.setItem('lang', currentLang);
   applyLang();
+}
+
+async function downloadScreenshot() {
+  const sessionEl = document.getElementById('session-' + activeSession);
+  if (!sessionEl) return;
+
+  const btn = document.getElementById('screenshot-btn');
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '…';
+
+  try {
+    const canvas = await html2canvas(sessionEl, {
+      backgroundColor: '#0f1117',
+      scale: window.devicePixelRatio || 1,
+      useCORS: false,
+      allowTaint: false,
+      logging: false,
+    });
+    const nameMap = { dataview: 'data-view', simulation: 'simulation', trades: 'trades', instock: 'in-stock' };
+    const date = new Date().toISOString().slice(0, 10);
+    const tickerPart = (activeSession === 'dataview' && activeTicker) ? `-${activeTicker}` : '';
+    const a = document.createElement('a');
+    a.download = `${nameMap[activeSession]}${tickerPart}-${date}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  } catch (e) {
+    console.error('Screenshot failed:', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
 }
 
 // ═══════════════════════════════════════════════
