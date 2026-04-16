@@ -6,7 +6,7 @@ import os
 import secrets
 import threading
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from typing import Optional
 
@@ -136,6 +136,58 @@ def get_ticker_names(raw: str) -> dict:
 _load_names_file()
 # Pre-load TWSE names in background so first request is fast
 threading.Thread(target=_ensure_tw_names, daemon=True).start()
+
+
+# ── Real-time quote cache (TTL = 5 s, in-memory) ────────────────────────────
+_rt_cache: dict[str, dict] = {}
+RT_CACHE_TTL = 5  # seconds
+
+def _is_tw_market_open() -> bool:
+    """True if current Asia/Taipei time is a weekday between 09:00 and 13:30.
+    Asia/Taipei is UTC+8 with no DST."""
+    now_utc = datetime.utcnow()
+    now_tw  = now_utc + timedelta(hours=8)
+    if now_tw.weekday() >= 5:
+        return False
+    t = now_tw.time()
+    return dtime(9, 0) <= t <= dtime(13, 30)
+
+
+def _fetch_twse_quote(ticker: str) -> Optional[dict]:
+    """Fetch near-real-time quote from TWSE MIS API. Tries TSE then OTC."""
+    bare = ticker.upper().strip()
+    for prefix in ("tse", "otc"):
+        url = (
+            f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
+            f"?ex_ch={prefix}_{bare}.tw&json=1&delay=0"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                payload = json.loads(r.read())
+            items = payload.get("msgArray", [])
+            if not items:
+                continue
+            item = items[0]
+            z = item.get("z", "-")
+            if not z or z == "-":
+                continue
+            return {
+                "ticker":      bare,
+                "price":       float(z),
+                "prev_close":  float(item.get("y") or 0),
+                "open":        float(item.get("o") or 0),
+                "high":        float(item.get("h") or 0),
+                "low":         float(item.get("l") or 0),
+                "volume":      int(float(item.get("v") or 0)),
+                "name_zh":     item.get("n", ""),
+                "update_time": item.get("t", ""),
+                "exchange":    prefix,
+                "market_open": True,
+            }
+        except Exception:
+            continue
+    return None
 
 
 def ticker_to_tw(ticker: str) -> str:
@@ -611,6 +663,33 @@ def get_quotes(tickers: str = Query(..., description="Comma-separated tickers, e
         except Exception as e:
             results.append({"ticker": raw.upper(), "error": str(e)})
     return {"quotes": results}
+
+
+@app.get("/quote/{ticker}")
+def get_realtime_quote(ticker: str):
+    """Return near-real-time TWSE/TPEX quote. Cached in-memory for 5 seconds."""
+    bare = ticker.upper().strip()
+    market_open = _is_tw_market_open()
+
+    if not market_open:
+        cached = _rt_cache.get(bare)
+        if cached:
+            return {**cached["data"], "market_open": False, "stale": True}
+        return {"ticker": bare, "market_open": False, "price": None}
+
+    cached = _rt_cache.get(bare)
+    if cached and (datetime.now() - cached["fetched_at"]).total_seconds() < RT_CACHE_TTL:
+        return cached["data"]
+
+    data = _fetch_twse_quote(bare)
+    if data:
+        _rt_cache[bare] = {"data": data, "fetched_at": datetime.now()}
+        return data
+
+    if cached:
+        return {**cached["data"], "market_open": True, "stale": True}
+
+    raise HTTPException(status_code=404, detail=f"No real-time data for {bare}")
 
 
 @app.get("/cache")

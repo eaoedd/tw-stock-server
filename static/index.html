@@ -210,6 +210,18 @@
     .badge-cache { background: #1f3a1f; color: #3fb950; }
     .badge-fetch { background: #1f2c3d; color: #58a6ff; }
 
+    /* ── Live quote strip ── */
+    #live-price-strip { display:none; align-items:baseline; gap:8px; margin-left:12px; }
+    #live-price-val { font-size:15px; font-weight:700; color:#e6edf3; }
+    #live-price-chg { font-size:12px; font-weight:600; }
+    #live-price-time { font-size:10px; color:#484f58; }
+    #live-badge { display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    #live-badge.live   { background:#1a2f1a; color:#3fb950; }
+    #live-badge.closed { background:#1f1f1f; color:#484f58; }
+    #live-badge.error  { background:#2f1a1a; color:#f85149; }
+    @keyframes livepulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .live-dot { width:7px; height:7px; border-radius:50%; background:#3fb950; animation:livepulse 1.4s ease-in-out infinite; flex-shrink:0; }
+
     .stat-block { display: flex; gap: 6px; align-items: baseline; }
     .stat-label { color: #8b949e; }
     .stat-val   { color: #e6edf3; font-weight: 600; font-size: 13px; }
@@ -465,6 +477,15 @@
         <div class="ohlc-val">C<span id="i-close">—</span></div>
         <div class="ohlc-val">Vol<span id="i-vol">—</span></div>
       </div>
+      <div id="live-price-strip">
+        <span id="live-price-val">—</span>
+        <span id="live-price-chg"></span>
+        <span id="live-price-time"></span>
+        <span id="live-badge" class="closed">
+          <span class="live-dot" style="display:none"></span>
+          <span id="live-badge-text"></span>
+        </span>
+      </div>
       <span id="status-text" data-i18n="status_enter_ticker">Enter a ticker symbol</span>
     </div>
 
@@ -668,6 +689,7 @@ const LANGS = {
     // Nav
     tab_dataview: 'Data View', tab_simulation: 'Simulation', tab_trades: 'Trades', tab_instock: 'In Stock',
     lang_btn: '中文', screenshot_btn: '📷',
+    live_badge_live: 'LIVE', live_badge_closed: 'Closed', live_badge_error: 'No data',
     // Watchlist
     wl_title: 'Watchlist', wl_add_placeholder: 'Add ticker…', wl_not_refreshed: 'Not refreshed yet',
     wl_refresh_btn: '↺',
@@ -720,6 +742,7 @@ const LANGS = {
     // Nav
     tab_dataview: '數據視圖', tab_simulation: '模擬', tab_trades: '交易紀錄', tab_instock: '持股',
     lang_btn: 'EN', screenshot_btn: '📷',
+    live_badge_live: '即時', live_badge_closed: '收盤', live_badge_error: '無資料',
     // Watchlist
     wl_title: '自選股', wl_add_placeholder: '輸入代號…', wl_not_refreshed: '尚未更新',
     wl_refresh_btn: '↺',
@@ -846,6 +869,8 @@ function switchSession(session) {
   document.getElementById('tab-trades').classList.toggle('active',     session === 'trades');
   document.getElementById('tab-instock').classList.toggle('active',    session === 'instock');
   document.getElementById('watchlist-panel').style.display = session === 'instock' ? 'none' : '';
+  if (session === 'dataview') startLivePolling();
+  else { stopLivePolling(); updateLiveBadge('hidden', null); }
   if (session === 'instock') requestAnimationFrame(() => isRefresh());
   if (session === 'simulation') {
     if (!btChart) runBacktest();
@@ -944,6 +969,74 @@ function toggleMA(id) {
 let activeTicker  = '';
 let loadedRecords = [];
 
+// ── Live quote polling ───────────────────────────────────────────────────────
+let _liveTimer = null;
+let _lastQuote = null;
+const LIVE_INTERVAL_MS = 5000;
+
+function isTwMarketOpen() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+    }).formatToParts(new Date()).map(p => [p.type, p.value])
+  );
+  if (parts.weekday === 'Sat' || parts.weekday === 'Sun') return false;
+  const mins = parseInt(parts.hour) * 60 + parseInt(parts.minute);
+  return mins >= 9 * 60 && mins <= 13 * 60 + 30;
+}
+
+function updateLiveBadge(state, data) {
+  const strip = document.getElementById('live-price-strip');
+  if (state === 'hidden' || !activeTicker) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  const badge = document.getElementById('live-badge');
+  const dot   = badge.querySelector('.live-dot');
+  badge.className = state;   // 'live' | 'closed' | 'error'
+  document.getElementById('live-badge-text').textContent = t('live_badge_' + state);
+
+  const quote = (state === 'live' && data) ? data : (state === 'closed' ? _lastQuote : null);
+  if (quote && quote.ticker === activeTicker) {
+    const chg    = quote.prev_close > 0 ? quote.price - quote.prev_close : 0;
+    const chgPct = quote.prev_close > 0 ? chg / quote.prev_close * 100 : 0;
+    const sign   = chg >= 0 ? '+' : '';
+    const cls    = chg >= 0 ? 'up' : 'dn';
+    document.getElementById('live-price-val').textContent = quote.price.toFixed(2);
+    document.getElementById('live-price-chg').innerHTML =
+      `<span class="${cls}">${sign}${chg.toFixed(2)} (${sign}${chgPct.toFixed(2)}%)</span>`;
+    document.getElementById('live-price-time').textContent =
+      state === 'live' && quote.update_time ? `@ ${quote.update_time}` : '';
+  }
+  dot.style.display = state === 'live' ? 'inline-block' : 'none';
+}
+
+async function livePoll() {
+  if (!activeTicker || activeSession !== 'dataview') return;
+  if (!isTwMarketOpen()) { updateLiveBadge('closed', null); stopLivePolling(); return; }
+  try {
+    const res = await fetchWithTimeout(`/quote/${activeTicker}`, 6000);
+    if (!res.ok) { updateLiveBadge('error', null); return; }
+    const data = await res.json();
+    if (!data.market_open) { updateLiveBadge('closed', null); stopLivePolling(); return; }
+    if (!data.price) { updateLiveBadge('error', null); return; }
+    _lastQuote = data;
+    updateLiveBadge('live', data);
+  } catch (_) { updateLiveBadge('error', null); }
+}
+
+function startLivePolling() {
+  stopLivePolling();
+  if (!activeTicker) return;
+  if (!isTwMarketOpen()) { updateLiveBadge('closed', null); return; }
+  livePoll();
+  _liveTimer = setInterval(livePoll, LIVE_INTERVAL_MS);
+}
+
+function stopLivePolling() {
+  clearInterval(_liveTimer);
+  _liveTimer = null;
+}
+
 async function loadData(forceRefresh = false) {
   const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
   const period = document.getElementById('period-select').value;
@@ -964,6 +1057,8 @@ async function loadData(forceRefresh = false) {
     renderCharts(data.ticker, data.records);
     renderTable(data.records);
     wlSetActive(ticker);
+    _lastQuote = null;
+    startLivePolling();
     const badge = data.source === 'cache'
       ? `<span class="badge badge-cache">cached</span>`
       : `<span class="badge badge-fetch">live</span>`;
