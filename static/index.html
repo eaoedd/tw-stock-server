@@ -491,10 +491,11 @@
 
     <div id="sim-controls-bar">
       <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptAddRow()" data-i18n="sim_add_portfolio">+ Portfolio</button>
+      <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptImportHoldings()" data-i18n="sim_import_holdings">Import Holdings</button>
       <button class="secondary" style="padding:4px 10px;font-size:12px" onclick="ptInitRows()" data-i18n="sim_reset">Reset</button>
       <div class="divider"></div>
       <label><span data-i18n="sim_period">Period</span>
-        <select id="bt-period-select" onchange="runBacktest()">
+        <select id="bt-period-select" onchange="btOnPeriodChange()">
           <option value="1mo">1M</option>
           <option value="3mo">3M</option>
           <option value="6mo">6M</option>
@@ -502,8 +503,14 @@
           <option value="2y">2Y</option>
           <option value="5y">5Y</option>
           <option value="max">MAX</option>
+          <option value="custom" data-i18n="sim_custom">Custom…</option>
         </select>
       </label>
+      <span id="bt-custom-range" style="display:none; align-items:center; gap:4px;">
+        <input type="date" id="bt-custom-from" onchange="runBacktest()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+        <span style="color:#8b949e;font-size:11px" data-i18n="st_to">to</span>
+        <input type="date" id="bt-custom-to" onchange="runBacktest()" style="font-size:12px;padding:3px 6px;border-color:#58a6ff;color:#58a6ff;" />
+      </span>
       <label><span data-i18n="sim_rfr">RFR (ann %)</span>
         <input type="number" id="bt-rfr" value="2.0" step="0.1" min="0" />
       </label>
@@ -666,7 +673,8 @@ const LANGS = {
     dv_title: 'TW Stock', status_enter_ticker: 'Enter a ticker symbol',
     dv_recent_data: 'Recent Data', th_date: 'Date', th_close: 'Close', th_chg_pct: 'Chg%', th_volume: 'Volume',
     // Simulation
-    sim_add_portfolio: '+ Portfolio', sim_reset: 'Reset', sim_period: 'Period', sim_rfr: 'RFR (ann %)',
+    sim_add_portfolio: '+ Portfolio', sim_import_holdings: 'Import Holdings', sim_my_holdings: 'My Holdings',
+    sim_reset: 'Reset', sim_period: 'Period', sim_rfr: 'RFR (ann %)', sim_custom: 'Custom…',
     sim_format_hint: 'format: TICKER:WEIGHT, … (CASH earns RFR)',
     sim_statistics: 'Statistics', sim_correlation: 'Correlation',
     th_portfolio: 'Portfolio', th_allocation: 'Allocation', th_ann_return: 'Ann. Return',
@@ -701,6 +709,7 @@ const LANGS = {
     confirm_delete_account: user => `Delete account "${user}" and all data? This cannot be undone.`,
     alert_delete_account_fail: 'Could not delete account',
     alert_add_allocation: 'Add allocations to at least one portfolio.',
+    alert_no_holdings: 'No current holdings found. Add trades in the Trades session first.',
     alert_backtest_error: msg => 'Backtest error: ' + msg,
     alert_date_amount: 'Date and amount are required.',
     alert_ticker_price: 'Ticker and price are required.',
@@ -716,7 +725,8 @@ const LANGS = {
     dv_title: '台股', status_enter_ticker: '請輸入股票代號',
     dv_recent_data: '近期資料', th_date: '日期', th_close: '收盤', th_chg_pct: '漲跌%', th_volume: '成交量',
     // Simulation
-    sim_add_portfolio: '+ 組合', sim_reset: '重設', sim_period: '期間', sim_rfr: '無風險利率(%)',
+    sim_add_portfolio: '+ 組合', sim_import_holdings: '匯入持股', sim_my_holdings: '我的持股',
+    sim_reset: '重設', sim_period: '期間', sim_rfr: '無風險利率(%)', sim_custom: '自訂…',
     sim_format_hint: '格式: 代號:權重, … (CASH 賺取無風險利率)',
     sim_statistics: '統計', sim_correlation: '相關性',
     th_portfolio: '投資組合', th_allocation: '配置', th_ann_return: '年化報酬',
@@ -751,6 +761,7 @@ const LANGS = {
     confirm_delete_account: user => `確定刪除帳號「${user}」及所有資料？此操作無法復原。`,
     alert_delete_account_fail: '無法刪除帳號',
     alert_add_allocation: '請至少為一個投資組合填入配置。',
+    alert_no_holdings: '目前沒有持股。請先在交易紀錄中新增買入交易。',
     alert_backtest_error: msg => '回測錯誤：' + msg,
     alert_date_amount: '請填寫日期和金額。',
     alert_ticker_price: '請填寫代號和價格。',
@@ -802,11 +813,12 @@ function switchSession(session) {
   document.getElementById('tab-instock').classList.toggle('active',    session === 'instock');
   document.getElementById('watchlist-panel').style.display = session === 'instock' ? 'none' : '';
   if (session === 'instock') requestAnimationFrame(() => isRefresh());
-  if (session === 'simulation') runBacktest();
-  if (session === 'simulation' && btChart) {
-    requestAnimationFrame(() => {
+  if (session === 'simulation') {
+    if (!btChart) runBacktest();
+    else requestAnimationFrame(() => {
       const el = document.getElementById('bt-chart-container');
       btChart.applyOptions({ width: el.clientWidth, height: el.clientHeight });
+      btChart.timeScale().fitContent();
     });
   }
 }
@@ -906,7 +918,7 @@ async function loadData(forceRefresh = false) {
   document.getElementById('loading').classList.add('show');
   document.getElementById('status-text').textContent = 'Fetching...';
   try {
-    const res = await fetch(`/history/${ticker}?period=${period}&refresh=${forceRefresh}`);
+    const res = await fetchWithTimeout(`/history/${ticker}?period=${period}&refresh=${forceRefresh}`);
     if (!res.ok) {
       const err = await res.json().catch(() => ({}));
       document.getElementById('status-text').textContent = 'Error: ' + (err.detail || res.statusText);
@@ -1329,6 +1341,37 @@ function ptInitRows() {
   ptRenderRows();
 }
 
+function ptImportHoldings() {
+  const positions = isComputePositions();
+  // Only stock tickers with shares > 0; exclude TWD
+  const held = Object.entries(positions)
+    .filter(([ticker, p]) => ticker !== 'TWD' && p.shares > 0.0001);
+
+  if (held.length === 0) {
+    alert(t('alert_no_holdings'));
+    return;
+  }
+
+  // Compute weights by market value; use isPrices if available, else cost basis
+  const values = held.map(([ticker, p]) => {
+    const price = isPrices[ticker] ?? (p.shares > 0 ? p.totalCost / p.shares : 0);
+    return { ticker, value: price * p.shares };
+  });
+  const totalValue = values.reduce((s, v) => s + v.value, 0);
+
+  const alloc = values
+    .map(v => `${v.ticker}:${Math.round(v.value / totalValue * 100)}`)
+    .join(', ');
+
+  // Put into Portfolio 1 (index 0), rename it to "My Holdings"
+  btPortfolios[0].name  = t('sim_my_holdings');
+  btPortfolios[0].alloc = alloc;
+  btActivePortfolioIdx  = 0;
+  ptRenderRows();
+  portfoliosSave();
+  btScheduleRun();
+}
+
 function ptRenderRows() {
   const wrap = document.getElementById('bt-portfolios-wrap');
   wrap.innerHTML = btPortfolios.map((p, i) => `
@@ -1352,6 +1395,13 @@ function btScheduleRun() {
   clearTimeout(_btRunTimer);
   _btRunTimer = setTimeout(() => runBacktest(), 800);
 }
+
+function btOnPeriodChange() {
+  const isCustom = document.getElementById('bt-period-select').value === 'custom';
+  document.getElementById('bt-custom-range').style.display = isCustom ? 'flex' : 'none';
+  if (!isCustom) runBacktest();
+}
+
 
 // ── Portfolio server sync ────────────────────────────────────────────────────
 let _portfolioSaveTimer = null;
@@ -1604,6 +1654,12 @@ function generateCashRecords(dates, rfrAnn) {
   });
 }
 
+function fetchWithTimeout(url, ms = 15000) {
+  const ctrl = new AbortController();
+  const id = setTimeout(() => ctrl.abort(), ms);
+  return fetch(url, { signal: ctrl.signal }).finally(() => clearTimeout(id));
+}
+
 async function runBacktest() {
   const validPortfolios = btPortfolios
     .map((p, i) => ({ ...p, idx: i, rows: parseAlloc(p.alloc) }))
@@ -1611,7 +1667,12 @@ async function runBacktest() {
 
   if (validPortfolios.length === 0) { alert(t('alert_add_allocation')); return; }
 
-  const period = document.getElementById('bt-period-select').value;
+  const period   = document.getElementById('bt-period-select').value;
+  const isCustom = period === 'custom';
+  const customFrom = isCustom ? document.getElementById('bt-custom-from').value : '';
+  const customTo   = isCustom ? document.getElementById('bt-custom-to').value   : '';
+  if (isCustom && (!customFrom || !customTo)) return;  // wait until both dates filled
+  const fetchPeriod = isCustom ? 'max' : period;
   const rfr    = parseFloat(document.getElementById('bt-rfr').value) / 100;
 
   document.getElementById('loading').classList.add('show');
@@ -1621,12 +1682,16 @@ async function runBacktest() {
       validPortfolios.flatMap(p => p.rows.map(r => r.ticker).filter(t => t !== 'CASH'))
     )];
     const fetchResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=${period}&refresh=true`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=${fetchPeriod}`).then(r => r.json()))
     );
     const recordsMap = {};
     allTickers.forEach((t, i) => {
-      if (fetchResults[i].status === 'fulfilled')
-        recordsMap[t] = fetchResults[i].value.records;
+      if (fetchResults[i].status === 'fulfilled') {
+        let records = fetchResults[i].value.records;
+        if (isCustom && records)
+          records = records.filter(r => r.date >= customFrom && r.date <= customTo);
+        recordsMap[t] = records;
+      }
     });
 
     // Detect tickers with truly identical price series (compare first 5 daily returns)
@@ -2242,7 +2307,7 @@ async function isRefresh() {
   try {
     // Fetch full history (cached) for the chart
     const histResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=max`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=max`).then(r => r.json()))
     );
     const allPriceData = {};
     histResults.forEach((r, i) => {
@@ -2254,7 +2319,7 @@ async function isRefresh() {
 
     // Fetch fresh 5d data to get today's price (force refresh)
     const freshResults = await Promise.allSettled(
-      allTickers.map(t => fetch(`/history/${t}?period=5d&refresh=true`).then(r => r.json()))
+      allTickers.map(t => fetchWithTimeout(`/history/${t}?period=5d&refresh=true`).then(r => r.json()))
     );
     freshResults.forEach((r, i) => {
       if (r.status === 'fulfilled' && r.value.records?.length) {

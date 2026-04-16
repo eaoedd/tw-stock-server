@@ -151,14 +151,15 @@ def cache_path(ticker: str) -> Path:
     return CACHE_DIR / f"{safe}.json"
 
 
-def load_cache(ticker: str) -> Optional[dict]:
+def load_cache(ticker: str, ignore_ttl: bool = False) -> Optional[dict]:
     path = cache_path(ticker)
     if not path.exists():
         return None
     data = json.loads(path.read_text())
-    cached_at = datetime.fromisoformat(data["cached_at"])
-    if datetime.now() - cached_at > timedelta(hours=CACHE_TTL_HOURS):
-        return None  # stale
+    if not ignore_ttl:
+        cached_at = datetime.fromisoformat(data["cached_at"])
+        if datetime.now() - cached_at > timedelta(hours=CACHE_TTL_HOURS):
+            return None  # stale
     return data
 
 
@@ -172,14 +173,25 @@ def save_cache(ticker: str, records: list[dict]) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False))
 
 
-def _yf_download(symbol: str, period: str):
-    """Wrapper around yf.download — serialized with a lock because yfinance is not thread-safe."""
-    try:
-        with _yf_lock:
-            return yf.download(symbol, period=period, auto_adjust=True, progress=False)
-    except Exception:
-        import pandas as pd
-        return pd.DataFrame()
+def _yf_download(symbol: str, period: str, timeout: int = 12):
+    """Wrapper around yf.download — serialized with a lock because yfinance is not thread-safe.
+    Runs in a separate thread so we can enforce a hard timeout."""
+    import concurrent.futures
+    import pandas as pd
+
+    def _do():
+        try:
+            with _yf_lock:
+                return yf.download(symbol, period=period, auto_adjust=True, progress=False)
+        except Exception:
+            return pd.DataFrame()
+
+    with concurrent.futures.ThreadPoolExecutor(max_workers=1) as ex:
+        future = ex.submit(_do)
+        try:
+            return future.result(timeout=timeout)
+        except concurrent.futures.TimeoutError:
+            return pd.DataFrame()
 
 
 def fetch_history(ticker: str, period: str) -> list[dict]:
@@ -518,21 +530,40 @@ def get_history(
     """Return OHLCV history for a Taiwan stock/ETF ticker."""
     cache_key = f"{ticker.upper()}_{period}"
 
-    if not refresh:
-        cached = load_cache(cache_key)
-        if cached:
-            return {**cached, "source": "cache"}
+    # Always serve fresh cache (within TTL) — no need to hit yfinance, even if refresh=true
+    cached = load_cache(cache_key)
+    if cached:
+        return {**cached, "source": "cache"}
 
-    records = fetch_history(ticker, period)
-    save_cache(cache_key, records)
-    tw_ticker = ticker_to_tw(ticker)
-    return {
-        "ticker": tw_ticker,
-        "period": period,
-        "cached_at": datetime.now().isoformat(),
-        "records": records,
-        "source": "fetched",
-    }
+    # No fresh cache — serve stale if refresh not requested, otherwise try yfinance
+    if not refresh:
+        stale = load_cache(cache_key, ignore_ttl=True)
+        if stale:
+            return {**stale, "source": "cache_stale"}
+
+    # refresh=true or no cache at all — try yfinance
+    try:
+        records = fetch_history(ticker, period)
+    except HTTPException:
+        records = []
+
+    if records:
+        save_cache(cache_key, records)
+        tw_ticker = ticker_to_tw(ticker)
+        return {
+            "ticker": tw_ticker,
+            "period": period,
+            "cached_at": datetime.now().isoformat(),
+            "records": records,
+            "source": "fetched",
+        }
+
+    # yfinance failed — fall back to stale cache as last resort
+    stale = load_cache(cache_key, ignore_ttl=True)
+    if stale:
+        return {**stale, "source": "cache_stale"}
+
+    raise HTTPException(status_code=404, detail=f"No data found for {ticker}")
 
 
 @app.get("/names")

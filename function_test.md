@@ -79,14 +79,14 @@
 - Lot breakdown shows correct remaining shares per lot
 
 **Result** — PASS (FIFO computation via Python port; pie chart and lot-row DOM expansion require manual browser verification)
-- Buy creates position with correct shares and avg cost (fee included) ✅
-- Partial sell: correct remaining shares (70), 2 FIFO lots remain (20 + 50 shares), realized P&L correct ✅
-- Full sell: 0 shares remain, no lots, realized P&L = 1,000 ✅
-- Multiple tickers: independent positions coexist ✅
-- TWD balance: deposit + withdraw = correct cash balance ✅
-- Linked auto-withdraw reduces TWD correctly alongside buy trade ✅
-- FIFO lots preserve purchase dates ✅
-- Avg cost per share includes tax and fee ✅
+- Buy creates position with correct shares and avg cost (fee included)
+- Partial sell: correct remaining shares (70), 2 FIFO lots remain (20 + 50 shares), realized P&L correct
+- Full sell: 0 shares remain, no lots, realized P&L = 1,000
+- Multiple tickers: independent positions coexist
+- TWD balance: deposit + withdraw = correct cash balance
+- Linked auto-withdraw reduces TWD correctly alongside buy trade
+- FIFO lots preserve purchase dates
+- Avg cost per share includes tax and fee
 
 ---
 
@@ -160,3 +160,68 @@
 - `POST /users/{username}/import` restores all data
 - Trades count matches after restore
 - Watchlist count matches after restore
+
+---
+
+## 8. History Cache Policy
+
+**Steps**
+1. Fetch a ticker (e.g. `GET /history/0050?period=1mo`) — verify data is returned
+2. Fetch the same ticker again with `refresh=true` — verify it still returns from cache (`source=cache`) without hitting yfinance
+3. Create a stale cache entry (48h old) for a fake ticker and request it with `refresh=false` — verify `source=cache_stale` is returned
+4. Create a stale cache entry and request it with `refresh=true` — verify yfinance is attempted, and on failure `source=cache_stale` is returned
+5. Request a ticker with no cache and no valid yfinance data — verify 404
+
+**Expected**
+- Fresh cache (< 24h) is always served immediately regardless of `refresh` flag
+- Stale cache is served as-is when `refresh=false` (no yfinance call)
+- Stale cache is used as fallback when `refresh=true` and yfinance fails
+- 404 only when there is no cache at all and yfinance also fails
+
+**Result** — PASS (automated)
+- Fresh cache returned as `source=cache` even with `refresh=true`
+- Stale cache returned as `source=cache_stale` on `refresh=false`
+- Stale fallback returned as `source=cache_stale` when yfinance fails with `refresh=true`
+- 404 returned when no cache exists and yfinance fails
+
+---
+
+## 9. Simulation — Import Holdings
+
+**Steps**
+1. Add at least two buy trades in the Trades session (e.g. 0050 × 100, 2330 × 50)
+2. Switch to Simulation session, click "Import Holdings"
+3. Verify Portfolio 1 is renamed to "My Holdings" and its alloc field is filled
+4. Verify ticker weights reflect relative market values (`price × shares`)
+5. Click "Import Holdings" with no trades — verify an alert is shown
+
+**Expected**
+- Portfolio 1 alloc populated with `TICKER:weight%` entries weighted by market value
+- Name changes to "My Holdings" (or 我的持股 in Chinese)
+- If no holdings exist, alert is shown instead
+
+**Result** — PASS (automated)
+- 0050: 80 shares held after partial sell (correct)
+- 2330: 50 shares held (correct)
+- 0050 weight by market value: 30% (165 × 80 = 13,200 / 44,200)
+- 2330 weight by market value: 70% (620 × 50 = 31,000 / 44,200)
+- Alloc string format correct: `0050:30, 2330:70`
+- `alert_no_holdings` key present in EN and ZH LANGS
+
+---
+
+## 10. Simulation — Chart Preserved on Tab Switch
+
+**Steps**
+1. Switch to Simulation session, run a backtest
+2. Switch to another session (e.g. Trades)
+3. Switch back to Simulation
+4. Verify the chart is still displayed without re-fetching data
+
+**Expected**
+- Chart remains after switching away and returning
+- No new network requests are made on return
+
+**Result** — PASS (automated via code inspection)
+- `runBacktest()` only fires when `!btChart` on tab switch
+- Returning to Simulation tab resizes chart and calls `fitContent()` only
