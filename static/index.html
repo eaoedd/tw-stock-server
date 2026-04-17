@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>TW Stock Chart</title>
   <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -209,6 +210,18 @@
     .badge-cache { background: #1f3a1f; color: #3fb950; }
     .badge-fetch { background: #1f2c3d; color: #58a6ff; }
 
+    /* ── Live quote strip ── */
+    #live-price-strip { display:none; align-items:baseline; gap:8px; margin-left:12px; }
+    #live-price-val { font-size:15px; font-weight:700; color:#e6edf3; }
+    #live-price-chg { font-size:12px; font-weight:600; }
+    #live-price-time { font-size:10px; color:#484f58; }
+    #live-badge { display:inline-flex; align-items:center; gap:4px; padding:1px 7px; border-radius:4px; font-size:11px; font-weight:600; }
+    #live-badge.live   { background:#1a2f1a; color:#3fb950; }
+    #live-badge.closed { background:#1f1f1f; color:#484f58; }
+    #live-badge.error  { background:#2f1a1a; color:#f85149; }
+    @keyframes livepulse { 0%,100%{opacity:1} 50%{opacity:.3} }
+    .live-dot { width:7px; height:7px; border-radius:50%; background:#3fb950; animation:livepulse 1.4s ease-in-out infinite; flex-shrink:0; }
+
     .stat-block { display: flex; gap: 6px; align-items: baseline; }
     .stat-label { color: #8b949e; }
     .stat-val   { color: #e6edf3; font-weight: 600; font-size: 13px; }
@@ -375,6 +388,7 @@
   <button class="nav-tab" id="tab-trades" onclick="switchSession('trades')" data-i18n="tab_trades">Trades</button>
   <button class="nav-tab" id="tab-instock" onclick="switchSession('instock')" data-i18n="tab_instock">In Stock</button>
   <button class="secondary" id="lang-btn" onclick="toggleLang()" data-i18n="lang_btn" style="margin-left:auto;padding:4px 10px;font-size:12px">中文</button>
+  <button class="secondary" id="screenshot-btn" onclick="downloadScreenshot()" title="Save PNG" style="padding:4px 10px;font-size:12px">📷</button>
 </div>
 
 <!-- ── App body: watchlist + sessions side by side ── -->
@@ -462,6 +476,15 @@
         <div class="ohlc-val">L<span id="i-low">—</span></div>
         <div class="ohlc-val">C<span id="i-close">—</span></div>
         <div class="ohlc-val">Vol<span id="i-vol">—</span></div>
+      </div>
+      <div id="live-price-strip">
+        <span id="live-price-val">—</span>
+        <span id="live-price-chg"></span>
+        <span id="live-price-time"></span>
+        <span id="live-badge" class="closed">
+          <span class="live-dot" style="display:none"></span>
+          <span id="live-badge-text"></span>
+        </span>
       </div>
       <span id="status-text" data-i18n="status_enter_ticker">Enter a ticker symbol</span>
     </div>
@@ -665,7 +688,8 @@ const LANGS = {
   en: {
     // Nav
     tab_dataview: 'Data View', tab_simulation: 'Simulation', tab_trades: 'Trades', tab_instock: 'In Stock',
-    lang_btn: '中文',
+    lang_btn: '中文', screenshot_btn: '📷',
+    live_badge_live: 'LIVE', live_badge_closed: 'Closed', live_badge_error: 'No data',
     // Watchlist
     wl_title: 'Watchlist', wl_add_placeholder: 'Add ticker…', wl_not_refreshed: 'Not refreshed yet',
     wl_refresh_btn: '↺',
@@ -717,7 +741,8 @@ const LANGS = {
   zh: {
     // Nav
     tab_dataview: '數據視圖', tab_simulation: '模擬', tab_trades: '交易紀錄', tab_instock: '持股',
-    lang_btn: 'EN',
+    lang_btn: 'EN', screenshot_btn: '📷',
+    live_badge_live: '即時', live_badge_closed: '收盤', live_badge_error: '無資料',
     // Watchlist
     wl_title: '自選股', wl_add_placeholder: '輸入代號…', wl_not_refreshed: '尚未更新',
     wl_refresh_btn: '↺',
@@ -796,6 +821,38 @@ function toggleLang() {
   applyLang();
 }
 
+async function downloadScreenshot() {
+  const sessionEl = document.getElementById('session-' + activeSession);
+  if (!sessionEl) return;
+
+  const btn = document.getElementById('screenshot-btn');
+  btn.disabled = true;
+  const orig = btn.textContent;
+  btn.textContent = '…';
+
+  try {
+    const canvas = await html2canvas(sessionEl, {
+      backgroundColor: '#0f1117',
+      scale: window.devicePixelRatio || 1,
+      useCORS: false,
+      allowTaint: false,
+      logging: false,
+    });
+    const nameMap = { dataview: 'data-view', simulation: 'simulation', trades: 'trades', instock: 'in-stock' };
+    const date = new Date().toISOString().slice(0, 10);
+    const tickerPart = (activeSession === 'dataview' && activeTicker) ? `-${activeTicker}` : '';
+    const a = document.createElement('a');
+    a.download = `${nameMap[activeSession]}${tickerPart}-${date}.png`;
+    a.href = canvas.toDataURL('image/png');
+    a.click();
+  } catch (e) {
+    console.error('Screenshot failed:', e);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = orig;
+  }
+}
+
 // ═══════════════════════════════════════════════
 // Session switcher
 // ═══════════════════════════════════════════════
@@ -812,6 +869,8 @@ function switchSession(session) {
   document.getElementById('tab-trades').classList.toggle('active',     session === 'trades');
   document.getElementById('tab-instock').classList.toggle('active',    session === 'instock');
   document.getElementById('watchlist-panel').style.display = session === 'instock' ? 'none' : '';
+  if (session === 'dataview') startLivePolling();
+  else { stopLivePolling(); updateLiveBadge('hidden', null); }
   if (session === 'instock') requestAnimationFrame(() => isRefresh());
   if (session === 'simulation') {
     if (!btChart) runBacktest();
@@ -910,6 +969,96 @@ function toggleMA(id) {
 let activeTicker  = '';
 let loadedRecords = [];
 
+// ── Live quote polling ───────────────────────────────────────────────────────
+let _liveTimer = null;
+let _lastQuote = null;
+const LIVE_INTERVAL_MS = 5000;
+
+function isUsTicker(ticker) {
+  return ticker && !/^\d/.test(ticker);
+}
+
+function isTwMarketOpen() {
+  const parts = Object.fromEntries(
+    new Intl.DateTimeFormat('en-CA', {
+      timeZone: 'Asia/Taipei',
+      hour: '2-digit', minute: '2-digit', hour12: false, weekday: 'short',
+    }).formatToParts(new Date()).map(p => [p.type, p.value])
+  );
+  if (parts.weekday === 'Sat' || parts.weekday === 'Sun') return false;
+  const mins = parseInt(parts.hour) * 60 + parseInt(parts.minute);
+  return mins >= 9 * 60 && mins <= 13 * 60 + 30;
+}
+
+function isUsMarketOpen() {
+  const now = new Date();
+  // Month-based DST: Apr(3)–Oct(9) → EDT (UTC-4), else EST (UTC-5)
+  const offset = (now.getUTCMonth() >= 3 && now.getUTCMonth() <= 9) ? -4 : -5;
+  const et  = new Date(now.getTime() + offset * 3600_000);
+  const day = et.getUTCDay();  // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return false;
+  const mins = et.getUTCHours() * 60 + et.getUTCMinutes();
+  return mins >= 9 * 60 + 30 && mins <= 16 * 60;
+}
+
+function isMarketOpen(ticker) {
+  return isUsTicker(ticker) ? isUsMarketOpen() : isTwMarketOpen();
+}
+
+function updateLiveBadge(state, data) {
+  const strip = document.getElementById('live-price-strip');
+  if (state === 'hidden' || !activeTicker) { strip.style.display = 'none'; return; }
+  strip.style.display = 'flex';
+  const badge    = document.getElementById('live-badge');
+  const dot      = badge.querySelector('.live-dot');
+  badge.className = state;   // 'live' | 'closed' | 'error'
+  const exLabel  = isUsTicker(activeTicker) ? 'NYSE' : 'TWSE';
+  const stLabel  = t('live_badge_' + state);
+  document.getElementById('live-badge-text').textContent =
+    (state === 'live' || state === 'closed') ? `${exLabel} · ${stLabel}` : stLabel;
+
+  const quote = (state === 'live' && data) ? data : (state === 'closed' ? _lastQuote : null);
+  if (quote && quote.ticker === activeTicker) {
+    const chg    = quote.prev_close > 0 ? quote.price - quote.prev_close : 0;
+    const chgPct = quote.prev_close > 0 ? chg / quote.prev_close * 100 : 0;
+    const sign   = chg >= 0 ? '+' : '';
+    const cls    = chg >= 0 ? 'up' : 'dn';
+    document.getElementById('live-price-val').textContent = quote.price.toFixed(2);
+    document.getElementById('live-price-chg').innerHTML =
+      `<span class="${cls}">${sign}${chg.toFixed(2)} (${sign}${chgPct.toFixed(2)}%)</span>`;
+    document.getElementById('live-price-time').textContent =
+      state === 'live' && quote.update_time ? `@ ${quote.update_time}` : '';
+  }
+  dot.style.display = state === 'live' ? 'inline-block' : 'none';
+}
+
+async function livePoll() {
+  if (!activeTicker || activeSession !== 'dataview') return;
+  if (!isMarketOpen(activeTicker)) { updateLiveBadge('closed', null); stopLivePolling(); return; }
+  try {
+    const res = await fetchWithTimeout(`/quote/${activeTicker}`, 6000);
+    if (!res.ok) { updateLiveBadge('error', null); return; }
+    const data = await res.json();
+    if (!data.market_open) { updateLiveBadge('closed', null); stopLivePolling(); return; }
+    if (!data.price) { updateLiveBadge('error', null); return; }
+    _lastQuote = data;
+    updateLiveBadge('live', data);
+  } catch (_) { updateLiveBadge('error', null); }
+}
+
+function startLivePolling() {
+  stopLivePolling();
+  if (!activeTicker) return;
+  if (!isMarketOpen(activeTicker)) { updateLiveBadge('closed', null); return; }
+  livePoll();
+  _liveTimer = setInterval(livePoll, LIVE_INTERVAL_MS);
+}
+
+function stopLivePolling() {
+  clearInterval(_liveTimer);
+  _liveTimer = null;
+}
+
 async function loadData(forceRefresh = false) {
   const ticker = document.getElementById('ticker-input').value.trim().toUpperCase();
   const period = document.getElementById('period-select').value;
@@ -930,6 +1079,8 @@ async function loadData(forceRefresh = false) {
     renderCharts(data.ticker, data.records);
     renderTable(data.records);
     wlSetActive(ticker);
+    _lastQuote = null;
+    startLivePolling();
     const badge = data.source === 'cache'
       ? `<span class="badge badge-cache">cached</span>`
       : `<span class="badge badge-fetch">live</span>`;
@@ -1345,7 +1496,7 @@ function ptImportHoldings() {
   const positions = isComputePositions();
   // Only stock tickers with shares > 0; exclude TWD
   const held = Object.entries(positions)
-    .filter(([ticker, p]) => ticker !== 'TWD' && p.shares > 0.0001);
+    .filter(([ticker, p]) => !isCashTicker(ticker) && p.shares > 0.0001);
 
   if (held.length === 0) {
     alert(t('alert_no_holdings'));
@@ -1890,7 +2041,7 @@ async function stAddTrade() {
       const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
       const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}`, {
         method: 'POST',
-        body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: data.trade.id }),
+        body: JSON.stringify({ date, ticker: isUsTicker(ticker) ? 'USD' : 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: data.trade.id }),
       });
       if (cashRes.ok) stTrades.push((await cashRes.json()).trade);
     }
@@ -1940,7 +2091,7 @@ async function stUpdateTrade() {
         const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
         const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${cashTrade.id}`, {
           method: 'PUT',
-          body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: id }),
+          body: JSON.stringify({ date, ticker: isUsTicker(ticker) ? 'USD' : 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: id }),
         });
         if (cashRes.ok) {
           const updatedCash = (await cashRes.json()).trade;
@@ -2053,17 +2204,21 @@ function isToggleExpand(ticker) {
 
 // Compute positions from stTrades using average cost method.
 // avg cost per share includes tax and fee proportionally.
+function isCashTicker(ticker) {
+  return ticker === 'TWD' || ticker === 'USD';
+}
+
 function isComputePositions() {
-  const lots = {};       // ticker → [{shares, costPerShare}]  (FIFO queue)
-  const realized = {};   // ticker → realizedPnL
-  let twdBalance = 0;
+  const lots = {};          // ticker → [{shares, costPerShare}]  (FIFO queue)
+  const realized = {};      // ticker → realizedPnL
+  const cashBalances = {};  // 'TWD' → balance, 'USD' → balance, etc.
 
   const sorted = [...stTrades].sort((a, b) => a.date.localeCompare(b.date));
   for (const t of sorted) {
     if (t.action === 'deposit') {
-      twdBalance += t.shares;
+      cashBalances[t.ticker] = (cashBalances[t.ticker] || 0) + t.shares;
     } else if (t.action === 'withdraw') {
-      twdBalance -= t.shares;
+      cashBalances[t.ticker] = (cashBalances[t.ticker] || 0) - t.shares;
     } else if (t.action === 'buy') {
       if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
       const costPerShare = (t.shares * t.price + (t.tax || 0) + (t.fee || 0)) / t.shares;
@@ -2087,8 +2242,10 @@ function isComputePositions() {
 
   // Build positions
   const positions = {};
-  if (Math.abs(twdBalance) > 0.0001)
-    positions['TWD'] = { shares: twdBalance, totalCost: twdBalance, realizedPnL: 0 };
+  for (const [cashTicker, balance] of Object.entries(cashBalances)) {
+    if (Math.abs(balance) > 0.0001)
+      positions[cashTicker] = { shares: balance, totalCost: balance, realizedPnL: 0 };
+  }
   for (const [ticker, tickerLots] of Object.entries(lots)) {
     const shares    = tickerLots.reduce((s, l) => s + l.shares, 0);
     const totalCost = tickerLots.reduce((s, l) => s + l.shares * l.costPerShare, 0);
@@ -2110,7 +2267,7 @@ function isRender() {
   let totalValue = 0, totalUnrealized = 0, totalCostBasis = 0;
 
   document.getElementById('is-tbody').innerHTML = rows.map(([ticker, p]) => {
-    const isTWD     = ticker === 'TWD';
+    const isTWD     = isCashTicker(ticker);
     const avgCost   = isTWD ? 1 : (p.shares > 0 ? p.totalCost / p.shares : 0);
     const totalCost = isTWD ? null : (p.shares > 0 ? p.totalCost : null);
     const current   = isTWD ? 1 : isPrices[ticker];
@@ -2260,7 +2417,7 @@ function isComputeHistory(allPriceData) {
     // Compute total value
     let stockValue = 0;
     for (const [ticker, shares] of Object.entries(holdings)) {
-      if (shares <= 0.0001 || ticker === 'TWD') continue;
+      if (shares <= 0.0001 || isCashTicker(ticker)) continue;
       const price = lastPrice[ticker];
       if (price != null) stockValue += shares * price;
     }
@@ -2300,7 +2457,7 @@ function isInitHistoryChart() {
 }
 
 async function isRefresh() {
-  const allTickers = [...new Set(stTrades.map(t => t.ticker).filter(t => t !== 'TWD'))];
+  const allTickers = [...new Set(stTrades.map(t => t.ticker).filter(t => !isCashTicker(t)))];
   if (allTickers.length === 0) { isRender(); return; }
 
   document.getElementById('loading').classList.add('show');

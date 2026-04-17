@@ -6,7 +6,7 @@ import os
 import secrets
 import threading
 import urllib.request
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, time as dtime
 from pathlib import Path
 from typing import Optional
 
@@ -126,7 +126,7 @@ def get_ticker_names(raw: str) -> dict:
         cached_at_str
         and datetime.now() - datetime.fromisoformat(cached_at_str) > timedelta(days=_NAMES_TTL_DAYS)
     ):
-        en = _fetch_en_name(key + ".TW") or _fetch_en_name(key + ".TWO") or ""
+        en = _fetch_en_name(key) if is_us_ticker(key) else (_fetch_en_name(key + ".TW") or _fetch_en_name(key + ".TWO") or "")
         _names_cache[key] = {"en": en, "cached_at": datetime.now().isoformat()}
         _save_names_file()
 
@@ -136,6 +136,114 @@ def get_ticker_names(raw: str) -> dict:
 _load_names_file()
 # Pre-load TWSE names in background so first request is fast
 threading.Thread(target=_ensure_tw_names, daemon=True).start()
+
+
+# ── Real-time quote cache (TTL = 5 s, in-memory) ────────────────────────────
+_rt_cache: dict[str, dict] = {}
+RT_CACHE_TTL = 5  # seconds
+
+def _is_tw_market_open() -> bool:
+    """True if current Asia/Taipei time is a weekday between 09:00 and 13:30.
+    Asia/Taipei is UTC+8 with no DST."""
+    now_utc = datetime.utcnow()
+    now_tw  = now_utc + timedelta(hours=8)
+    if now_tw.weekday() >= 5:
+        return False
+    t = now_tw.time()
+    return dtime(9, 0) <= t <= dtime(13, 30)
+
+
+def _fetch_twse_quote(ticker: str) -> Optional[dict]:
+    """Fetch near-real-time quote from TWSE MIS API. Tries TSE then OTC."""
+    bare = ticker.upper().strip()
+    for prefix in ("tse", "otc"):
+        url = (
+            f"https://mis.twse.com.tw/stock/api/getStockInfo.jsp"
+            f"?ex_ch={prefix}_{bare}.tw&json=1&delay=0"
+        )
+        try:
+            req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                payload = json.loads(r.read())
+            items = payload.get("msgArray", [])
+            if not items:
+                continue
+            item = items[0]
+            z = item.get("z", "-")
+            if not z or z == "-":
+                continue
+            return {
+                "ticker":      bare,
+                "price":       float(z),
+                "prev_close":  float(item.get("y") or 0),
+                "open":        float(item.get("o") or 0),
+                "high":        float(item.get("h") or 0),
+                "low":         float(item.get("l") or 0),
+                "volume":      int(float(item.get("v") or 0)),
+                "name_zh":     item.get("n", ""),
+                "update_time": item.get("t", ""),
+                "exchange":    prefix,
+                "market_open": True,
+            }
+        except Exception:
+            continue
+    return None
+
+
+def is_us_ticker(ticker: str) -> bool:
+    """Return True if ticker is a US equity (starts with a letter, no .TW/.TWO suffix)."""
+    bare = ticker.upper().strip()
+    for suffix in (".TW", ".TWO"):
+        if bare.endswith(suffix):
+            return False
+    return bool(bare) and not bare[0].isdigit()
+
+
+def _is_us_market_open() -> bool:
+    """True if current NYSE/NASDAQ time is a weekday between 09:30 and 16:00 ET.
+    Month-based DST: April–October → EDT (UTC-4), else EST (UTC-5)."""
+    now_utc = datetime.utcnow()
+    offset  = -4 if 4 <= now_utc.month <= 10 else -5
+    now_et  = now_utc + timedelta(hours=offset)
+    if now_et.weekday() >= 5:
+        return False
+    t = now_et.time()
+    return dtime(9, 30) <= t <= dtime(16, 0)
+
+
+def _fetch_yahoo_quote(ticker: str) -> Optional[dict]:
+    """Fetch near-real-time quote for a US ticker via Yahoo Finance /v8/finance/chart/."""
+    url = f"https://query1.finance.yahoo.com/v8/finance/chart/{ticker}?interval=1d&range=1d"
+    try:
+        req = urllib.request.Request(url, headers={
+            "User-Agent": "Mozilla/5.0",
+            "Accept": "application/json",
+        })
+        with urllib.request.urlopen(req, timeout=8) as r:
+            payload = json.loads(r.read())
+        result = payload.get("chart", {}).get("result")
+        if not result:
+            return None
+        meta  = result[0].get("meta", {})
+        price = meta.get("regularMarketPrice")
+        prev  = meta.get("chartPreviousClose") or meta.get("previousClose")
+        if price is None:
+            return None
+        return {
+            "ticker":      ticker.upper(),
+            "price":       round(float(price), 2),
+            "prev_close":  round(float(prev), 2) if prev else 0.0,
+            "open":        round(float(meta.get("regularMarketOpen")    or 0), 2),
+            "high":        round(float(meta.get("regularMarketDayHigh") or 0), 2),
+            "low":         round(float(meta.get("regularMarketDayLow")  or 0), 2),
+            "volume":      int(meta.get("regularMarketVolume") or 0),
+            "name_zh":     "",
+            "update_time": "",
+            "exchange":    meta.get("fullExchangeName", "US"),
+            "market_open": True,
+        }
+    except Exception:
+        return None
 
 
 def ticker_to_tw(ticker: str) -> str:
@@ -203,14 +311,18 @@ def fetch_history(ticker: str, period: str) -> list[dict]:
             raw = raw[: -len(suffix)]
             break
 
-    tw_ticker = raw + ".TW"
-    df = _yf_download(tw_ticker, period)
-    if df.empty:
-        two_ticker = raw + ".TWO"
-        df = _yf_download(two_ticker, period)
+    if is_us_ticker(raw):
+        df = _yf_download(raw, period)
         if df.empty:
-            raise HTTPException(status_code=404, detail=f"No data found for {tw_ticker} or {two_ticker}")
-        tw_ticker = two_ticker
+            raise HTTPException(status_code=404, detail=f"No data found for {raw}")
+    else:
+        tw_ticker = raw + ".TW"
+        df = _yf_download(tw_ticker, period)
+        if df.empty:
+            two_ticker = raw + ".TWO"
+            df = _yf_download(two_ticker, period)
+            if df.empty:
+                raise HTTPException(status_code=404, detail=f"No data found for {tw_ticker} or {two_ticker}")
     # Flatten multi-level columns produced by newer yfinance versions
     if isinstance(df.columns, __import__("pandas").MultiIndex):
         df.columns = [col[0] for col in df.columns]
@@ -549,7 +661,7 @@ def get_history(
 
     if records:
         save_cache(cache_key, records)
-        tw_ticker = ticker_to_tw(ticker)
+        tw_ticker = ticker if is_us_ticker(ticker) else ticker_to_tw(ticker)
         return {
             "ticker": tw_ticker,
             "period": period,
@@ -587,7 +699,7 @@ def get_quotes(tickers: str = Query(..., description="Comma-separated tickers, e
         raw = raw.strip()
         if not raw:
             continue
-        tw_ticker = ticker_to_tw(raw)
+        tw_ticker = raw if is_us_ticker(raw) else ticker_to_tw(raw)
         try:
             df = _yf_download(tw_ticker, "5d")
             if isinstance(df.columns, __import__("pandas").MultiIndex):
@@ -611,6 +723,34 @@ def get_quotes(tickers: str = Query(..., description="Comma-separated tickers, e
         except Exception as e:
             results.append({"ticker": raw.upper(), "error": str(e)})
     return {"quotes": results}
+
+
+@app.get("/quote/{ticker}")
+def get_realtime_quote(ticker: str):
+    """Return near-real-time quote. Routes US tickers to Yahoo Finance, TW to TWSE."""
+    bare        = ticker.upper().strip()
+    us          = is_us_ticker(bare)
+    market_open = _is_us_market_open() if us else _is_tw_market_open()
+
+    if not market_open:
+        cached = _rt_cache.get(bare)
+        if cached:
+            return {**cached["data"], "market_open": False, "stale": True}
+        return {"ticker": bare, "market_open": False, "price": None}
+
+    cached = _rt_cache.get(bare)
+    if cached and (datetime.now() - cached["fetched_at"]).total_seconds() < RT_CACHE_TTL:
+        return cached["data"]
+
+    data = _fetch_yahoo_quote(bare) if us else _fetch_twse_quote(bare)
+    if data:
+        _rt_cache[bare] = {"data": data, "fetched_at": datetime.now()}
+        return data
+
+    if cached:
+        return {**cached["data"], "market_open": True, "stale": True}
+
+    raise HTTPException(status_code=404, detail=f"No real-time data for {bare}")
 
 
 @app.get("/cache")
