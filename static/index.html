@@ -974,6 +974,10 @@ let _liveTimer = null;
 let _lastQuote = null;
 const LIVE_INTERVAL_MS = 5000;
 
+function isUsTicker(ticker) {
+  return ticker && !/^\d/.test(ticker);
+}
+
 function isTwMarketOpen() {
   const parts = Object.fromEntries(
     new Intl.DateTimeFormat('en-CA', {
@@ -986,14 +990,32 @@ function isTwMarketOpen() {
   return mins >= 9 * 60 && mins <= 13 * 60 + 30;
 }
 
+function isUsMarketOpen() {
+  const now = new Date();
+  // Month-based DST: Apr(3)–Oct(9) → EDT (UTC-4), else EST (UTC-5)
+  const offset = (now.getUTCMonth() >= 3 && now.getUTCMonth() <= 9) ? -4 : -5;
+  const et  = new Date(now.getTime() + offset * 3600_000);
+  const day = et.getUTCDay();  // 0=Sun, 6=Sat
+  if (day === 0 || day === 6) return false;
+  const mins = et.getUTCHours() * 60 + et.getUTCMinutes();
+  return mins >= 9 * 60 + 30 && mins <= 16 * 60;
+}
+
+function isMarketOpen(ticker) {
+  return isUsTicker(ticker) ? isUsMarketOpen() : isTwMarketOpen();
+}
+
 function updateLiveBadge(state, data) {
   const strip = document.getElementById('live-price-strip');
   if (state === 'hidden' || !activeTicker) { strip.style.display = 'none'; return; }
   strip.style.display = 'flex';
-  const badge = document.getElementById('live-badge');
-  const dot   = badge.querySelector('.live-dot');
+  const badge    = document.getElementById('live-badge');
+  const dot      = badge.querySelector('.live-dot');
   badge.className = state;   // 'live' | 'closed' | 'error'
-  document.getElementById('live-badge-text').textContent = t('live_badge_' + state);
+  const exLabel  = isUsTicker(activeTicker) ? 'NYSE' : 'TWSE';
+  const stLabel  = t('live_badge_' + state);
+  document.getElementById('live-badge-text').textContent =
+    (state === 'live' || state === 'closed') ? `${exLabel} · ${stLabel}` : stLabel;
 
   const quote = (state === 'live' && data) ? data : (state === 'closed' ? _lastQuote : null);
   if (quote && quote.ticker === activeTicker) {
@@ -1012,7 +1034,7 @@ function updateLiveBadge(state, data) {
 
 async function livePoll() {
   if (!activeTicker || activeSession !== 'dataview') return;
-  if (!isTwMarketOpen()) { updateLiveBadge('closed', null); stopLivePolling(); return; }
+  if (!isMarketOpen(activeTicker)) { updateLiveBadge('closed', null); stopLivePolling(); return; }
   try {
     const res = await fetchWithTimeout(`/quote/${activeTicker}`, 6000);
     if (!res.ok) { updateLiveBadge('error', null); return; }
@@ -1027,7 +1049,7 @@ async function livePoll() {
 function startLivePolling() {
   stopLivePolling();
   if (!activeTicker) return;
-  if (!isTwMarketOpen()) { updateLiveBadge('closed', null); return; }
+  if (!isMarketOpen(activeTicker)) { updateLiveBadge('closed', null); return; }
   livePoll();
   _liveTimer = setInterval(livePoll, LIVE_INTERVAL_MS);
 }
@@ -1474,7 +1496,7 @@ function ptImportHoldings() {
   const positions = isComputePositions();
   // Only stock tickers with shares > 0; exclude TWD
   const held = Object.entries(positions)
-    .filter(([ticker, p]) => ticker !== 'TWD' && p.shares > 0.0001);
+    .filter(([ticker, p]) => !isCashTicker(ticker) && p.shares > 0.0001);
 
   if (held.length === 0) {
     alert(t('alert_no_holdings'));
@@ -2019,7 +2041,7 @@ async function stAddTrade() {
       const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
       const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}`, {
         method: 'POST',
-        body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: data.trade.id }),
+        body: JSON.stringify({ date, ticker: isUsTicker(ticker) ? 'USD' : 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: data.trade.id }),
       });
       if (cashRes.ok) stTrades.push((await cashRes.json()).trade);
     }
@@ -2069,7 +2091,7 @@ async function stUpdateTrade() {
         const cashAction = action === 'buy' ? 'withdraw' : 'deposit';
         const cashRes = await authFetch(`/trades/${encodeURIComponent(currentUser)}/${cashTrade.id}`, {
           method: 'PUT',
-          body: JSON.stringify({ date, ticker: 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: id }),
+          body: JSON.stringify({ date, ticker: isUsTicker(ticker) ? 'USD' : 'TWD', action: cashAction, shares: cashAmount, price: 1, tax: 0, fee: 0, note: `auto (${ticker} ${action})`, linkedId: id }),
         });
         if (cashRes.ok) {
           const updatedCash = (await cashRes.json()).trade;
@@ -2182,17 +2204,21 @@ function isToggleExpand(ticker) {
 
 // Compute positions from stTrades using average cost method.
 // avg cost per share includes tax and fee proportionally.
+function isCashTicker(ticker) {
+  return ticker === 'TWD' || ticker === 'USD';
+}
+
 function isComputePositions() {
-  const lots = {};       // ticker → [{shares, costPerShare}]  (FIFO queue)
-  const realized = {};   // ticker → realizedPnL
-  let twdBalance = 0;
+  const lots = {};          // ticker → [{shares, costPerShare}]  (FIFO queue)
+  const realized = {};      // ticker → realizedPnL
+  const cashBalances = {};  // 'TWD' → balance, 'USD' → balance, etc.
 
   const sorted = [...stTrades].sort((a, b) => a.date.localeCompare(b.date));
   for (const t of sorted) {
     if (t.action === 'deposit') {
-      twdBalance += t.shares;
+      cashBalances[t.ticker] = (cashBalances[t.ticker] || 0) + t.shares;
     } else if (t.action === 'withdraw') {
-      twdBalance -= t.shares;
+      cashBalances[t.ticker] = (cashBalances[t.ticker] || 0) - t.shares;
     } else if (t.action === 'buy') {
       if (!lots[t.ticker]) { lots[t.ticker] = []; realized[t.ticker] = 0; }
       const costPerShare = (t.shares * t.price + (t.tax || 0) + (t.fee || 0)) / t.shares;
@@ -2216,8 +2242,10 @@ function isComputePositions() {
 
   // Build positions
   const positions = {};
-  if (Math.abs(twdBalance) > 0.0001)
-    positions['TWD'] = { shares: twdBalance, totalCost: twdBalance, realizedPnL: 0 };
+  for (const [cashTicker, balance] of Object.entries(cashBalances)) {
+    if (Math.abs(balance) > 0.0001)
+      positions[cashTicker] = { shares: balance, totalCost: balance, realizedPnL: 0 };
+  }
   for (const [ticker, tickerLots] of Object.entries(lots)) {
     const shares    = tickerLots.reduce((s, l) => s + l.shares, 0);
     const totalCost = tickerLots.reduce((s, l) => s + l.shares * l.costPerShare, 0);
@@ -2239,7 +2267,7 @@ function isRender() {
   let totalValue = 0, totalUnrealized = 0, totalCostBasis = 0;
 
   document.getElementById('is-tbody').innerHTML = rows.map(([ticker, p]) => {
-    const isTWD     = ticker === 'TWD';
+    const isTWD     = isCashTicker(ticker);
     const avgCost   = isTWD ? 1 : (p.shares > 0 ? p.totalCost / p.shares : 0);
     const totalCost = isTWD ? null : (p.shares > 0 ? p.totalCost : null);
     const current   = isTWD ? 1 : isPrices[ticker];
@@ -2389,7 +2417,7 @@ function isComputeHistory(allPriceData) {
     // Compute total value
     let stockValue = 0;
     for (const [ticker, shares] of Object.entries(holdings)) {
-      if (shares <= 0.0001 || ticker === 'TWD') continue;
+      if (shares <= 0.0001 || isCashTicker(ticker)) continue;
       const price = lastPrice[ticker];
       if (price != null) stockValue += shares * price;
     }
@@ -2429,7 +2457,7 @@ function isInitHistoryChart() {
 }
 
 async function isRefresh() {
-  const allTickers = [...new Set(stTrades.map(t => t.ticker).filter(t => t !== 'TWD'))];
+  const allTickers = [...new Set(stTrades.map(t => t.ticker).filter(t => !isCashTicker(t)))];
   if (allTickers.length === 0) { isRender(); return; }
 
   document.getElementById('loading').classList.add('show');
