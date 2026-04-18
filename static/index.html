@@ -1403,7 +1403,7 @@ function wlRender() {
     const tooltip = zh && en ? `${zh} / ${en}` : (zh || en);
     return `<div class="wl-item${isActive}" data-ticker="${ticker}" onclick="wlSelect('${ticker}')">
       <div class="wl-item-info">
-        <div class="wl-ticker">${ticker}</div>
+        <div class="wl-ticker">${ticker.endsWith('=X') ? ticker.slice(0,3)+'/'+ticker.slice(3,6) : ticker}</div>
         ${displayName ? `<div class="wl-name" title="${tooltip}">${displayName}</div>` : ''}
         <div class="wl-date">${q?.date ?? ''}</div>
       </div>
