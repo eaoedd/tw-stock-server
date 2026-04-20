@@ -1529,10 +1529,12 @@ function ptRenderRows() {
     <div class="pt-row${i === btActivePortfolioIdx ? ' pt-active' : ''}">
       <span class="pt-color-dot" style="background:${BT_COLORS[i]}"></span>
       <input class="pt-name-input" type="text" value="${p.name.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value;portfoliosSave();btScheduleRun()" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].name=this.value;portfoliosSave()"
+        onkeydown="if(event.key==='Enter'){runBacktest();this.blur();}" />
       <input class="pt-alloc-input" type="text" placeholder="e.g. 0050:60, 00675L:40"
         value="${p.alloc.replace(/"/g,'&quot;')}"
-        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value;portfoliosSave();btScheduleRun()" />
+        onfocus="ptSetActive(${i})" oninput="btPortfolios[${i}].alloc=this.value;portfoliosSave()"
+        onkeydown="if(event.key==='Enter'){runBacktest();this.blur();}" />
       <button class="icon-btn" title="Clear alloc" onclick="ptClearRow(${i})">⌫</button>
       ${btPortfolios.length > 1
         ? `<button class="icon-btn" onclick="ptRemoveRow(${i})">✕</button>`
