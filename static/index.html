@@ -644,6 +644,10 @@
   <div id="session-instock" style="display:none">
     <div id="is-topbar">
       <h1 data-i18n="is_title">In Stock</h1>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button id="is-btn-twd" class="secondary active" style="padding:3px 10px;font-size:12px" onclick="isSetCurrency('TWD')">TWD</button>
+        <button id="is-btn-usd" class="secondary"        style="padding:3px 10px;font-size:12px" onclick="isSetCurrency('USD')">USD</button>
+      </div>
     </div>
     <div id="is-history"></div>
     <div id="is-body">
@@ -2195,8 +2199,22 @@ function stRender() {
 // In Stock
 // ═══════════════════════════════════════════════
 
-let isPrices   = {};   // ticker → latest close price
-let isExpanded = new Set();  // tickers with expanded lot rows
+let isPrices         = {};      // ticker → latest close price (native currency)
+let isExpanded       = new Set(); // tickers with expanded lot rows
+let isUsdTwdRate     = null;    // last fetched USDTWD exchange rate
+let isDisplayCurrency = 'TWD';  // 'TWD' or 'USD'
+
+function isConv(value, isUSDenominated) {
+  if (value == null || isUsdTwdRate == null) return value;
+  if (isDisplayCurrency === 'TWD') return isUSDenominated ? value * isUsdTwdRate : value;
+  else                              return isUSDenominated ? value : value / isUsdTwdRate;
+}
+function isSetCurrency(cur) {
+  isDisplayCurrency = cur;
+  document.getElementById('is-btn-twd').classList.toggle('active', cur === 'TWD');
+  document.getElementById('is-btn-usd').classList.toggle('active', cur === 'USD');
+  isRender();
+}
 
 function isToggleExpand(ticker) {
   if (isExpanded.has(ticker)) isExpanded.delete(ticker);
@@ -2257,6 +2275,7 @@ function isComputePositions() {
 }
 
 function isRender() {
+  const cur    = isDisplayCurrency;
   const fmt    = n => n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
   const fmtPnl = n => (n >= 0 ? '+' : '') + fmt(n);
   const clsPnl = n => n >= 0 ? 'style="color:#3fb950"' : 'style="color:#f85149"';
@@ -2269,28 +2288,38 @@ function isRender() {
   let totalValue = 0, totalUnrealized = 0, totalCostBasis = 0;
 
   document.getElementById('is-tbody').innerHTML = rows.map(([ticker, p]) => {
-    const isTWD     = isCashTicker(ticker);
-    const avgCost   = isTWD ? 1 : (p.shares > 0 ? p.totalCost / p.shares : 0);
-    const totalCost = isTWD ? null : (p.shares > 0 ? p.totalCost : null);
-    const current   = isTWD ? 1 : isPrices[ticker];
-    const mktValue  = current != null && p.shares !== 0 ? current * p.shares : null;
-    const unrealized = isTWD ? null : (current != null && p.shares > 0 ? (current - avgCost) * p.shares : null);
-    const unrealPct  = isTWD || p.shares <= 0 ? null : (current != null && avgCost > 0 ? (current - avgCost) / avgCost * 100 : null);
+    const isCash    = isCashTicker(ticker);
+    const isUS      = isCash ? ticker === 'USD' : isUsTicker(ticker);  // is this row USD-denominated?
+    const cv        = v => isConv(v, isUS);
 
-    if (mktValue  != null) totalValue      += mktValue;
-    if (unrealized != null) { totalUnrealized += unrealized; totalCostBasis += (totalCost ?? 0); }
+    const avgCostNative = isCash ? 1 : (p.shares > 0 ? p.totalCost / p.shares : 0);
+    const totalCostNative = isCash ? null : (p.shares > 0 ? p.totalCost : null);
+    const currentNative   = isCash ? 1 : isPrices[ticker];
+    const mktValueNative  = currentNative != null && p.shares !== 0 ? currentNative * p.shares : null;
+    const unrealizedNative = isCash ? null : (currentNative != null && p.shares > 0 ? (currentNative - avgCostNative) * p.shares : null);
+    const unrealPct = isCash || p.shares <= 0 ? null : (currentNative != null && avgCostNative > 0 ? (currentNative - avgCostNative) / avgCostNative * 100 : null);
 
-    const sharesCell    = p.shares > 0 ? (isTWD ? fmt(p.shares) : p.shares.toLocaleString()) : '—';
-    const avgCostCell   = isTWD ? '1.00' : (p.shares > 0 ? fmt(avgCost) : '—');
-    const currentCell   = current != null ? fmt(current) : '<span style="color:#484f58">—</span>';
-    const totalCostCell = totalCost != null ? fmt(totalCost) : '—';
-    const valueCell    = mktValue != null ? fmt(mktValue) : '<span style="color:#484f58">—</span>';
-    const unrealCell   = unrealized != null
-      ? `<span ${clsPnl(unrealized)}>${fmtPnl(unrealized)}</span>` : '<span style="color:#484f58">—</span>';
+    const mktValueConv    = cv(mktValueNative);
+    const unrealizedConv  = cv(unrealizedNative);
+    const totalCostConv   = cv(totalCostNative);
+
+    if (mktValueConv   != null) totalValue      += mktValueConv;
+    if (unrealizedConv != null) { totalUnrealized += unrealizedConv; totalCostBasis += (totalCostConv ?? 0); }
+
+    const currBadge = (isUS && cur === 'TWD') || (!isUS && cur === 'USD')
+      ? `<span style="font-size:10px;color:#8b949e;margin-left:3px">${isUS ? 'USD' : 'TWD'}</span>` : '';
+
+    const sharesCell    = p.shares > 0 ? (isCash ? fmt(p.shares) : p.shares.toLocaleString()) : '—';
+    const avgCostCell   = isCash ? fmt(cv(1)) : (p.shares > 0 ? fmt(cv(avgCostNative)) : '—');
+    const currentCell   = currentNative != null ? fmt(cv(currentNative)) : '<span style="color:#484f58">—</span>';
+    const totalCostCell = totalCostConv != null ? fmt(totalCostConv) : '—';
+    const valueCell     = mktValueConv  != null ? `${fmt(mktValueConv)}${currBadge}` : '<span style="color:#484f58">—</span>';
+    const unrealCell    = unrealizedConv != null
+      ? `<span ${clsPnl(unrealizedConv)}>${fmtPnl(unrealizedConv)}</span>` : '<span style="color:#484f58">—</span>';
     const unrealPctCell = unrealPct != null
       ? `<span ${clsPnl(unrealPct)}>${fmtPnl(unrealPct)}%</span>` : '<span style="color:#484f58">—</span>';
 
-    const hasLots   = !isTWD && p.lots && p.lots.length > 0;
+    const hasLots   = !isCash && p.lots && p.lots.length > 0;
     const expanded  = isExpanded.has(ticker);
     const arrow     = hasLots ? `<span class="is-expand-arrow" style="transform:rotate(${expanded ? 90 : 0}deg)">▶</span>` : '<span class="is-expand-arrow"></span>';
     const tickerClick = hasLots ? `onclick="isToggleExpand('${ticker}')"` : '';
@@ -2300,9 +2329,9 @@ function isRender() {
       lotRows = p.lots.map(l => `<tr class="is-lot-row">
         <td>${l.date}</td>
         <td>${l.shares.toLocaleString()}</td>
-        <td>${fmt(l.costPerShare)}</td>
+        <td>${fmt(cv(l.costPerShare))}</td>
         <td></td>
-        <td>${fmt(l.shares * l.costPerShare)}</td>
+        <td>${fmt(cv(l.shares * l.costPerShare))}</td>
         <td></td><td></td><td></td>
       </tr>`).join('');
     }
@@ -2321,19 +2350,21 @@ function isRender() {
 
   const held = rows.filter(([, p]) => p.shares > 0.0001).length;
   document.getElementById('is-count').textContent          = held;
-  document.getElementById('is-total-value').textContent    = fmt(totalValue);
+  document.getElementById('is-total-value').textContent    = fmt(totalValue) + ' ' + cur;
   const totalUnrealPct = totalCostBasis > 0 ? totalUnrealized / totalCostBasis * 100 : 0;
   document.getElementById('is-total-unrealized').innerHTML =
-    `<span ${clsPnl(totalUnrealized)}>${fmtPnl(totalUnrealized)}</span>` +
+    `<span ${clsPnl(totalUnrealized)}>${fmtPnl(totalUnrealized)} ${cur}</span>` +
     `<span style="color:#8b949e;margin-left:6px;font-weight:400">(${fmtPnl(totalUnrealPct)}%)</span>`;
 
-  // Pie chart — based on market value (or cost if no price yet)
+  // Pie chart — use converted values so all slices are in the same currency
   const PIE_COLORS = ['#58a6ff','#3fb950','#f0b429','#bf5af2','#ff7b72',
                       '#79c0ff','#56d364','#e3b341','#d2a8ff','#ffa198'];
   const pieSlices = rows
     .filter(([, p]) => p.shares > 0.0001)
     .map(([ticker, p], i) => {
-      const value = isPrices[ticker] != null ? isPrices[ticker] * p.shares : p.totalCost;
+      const isUSrow = isCashTicker(ticker) ? ticker === 'USD' : isUsTicker(ticker);
+      const nativeVal = isPrices[ticker] != null ? isPrices[ticker] * p.shares : p.totalCost;
+      const value = isConv(nativeVal, isUSrow) ?? 0;
       return { ticker, value, color: PIE_COLORS[i % PIE_COLORS.length] };
     })
     .filter(s => s.value > 0);
@@ -2464,6 +2495,11 @@ async function isRefresh() {
 
   document.getElementById('loading').classList.add('show');
   try {
+    // Fetch USD/TWD rate for currency conversion
+    fetchWithTimeout('/history/USDTWD=X?period=5d&refresh=true').then(r => r.json())
+      .then(d => { if (d.records?.length) isUsdTwdRate = d.records.at(-1).close; })
+      .catch(() => {});
+
     // Fetch full history (cached) for the chart
     const histResults = await Promise.allSettled(
       allTickers.map(t => fetchWithTimeout(`/history/${t}?period=max`).then(r => r.json()))
